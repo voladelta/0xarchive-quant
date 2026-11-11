@@ -4,7 +4,7 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Thirty-six changes to the rules were tested in eleven rounds. **The last round changed the standard of
+Thirty-nine changes to the rules were tested in twelve rounds. **The last round changed the standard of
 evidence.** A ladder that misses its exit by one fill can sit for months, so one backtest of this strategy is
 one draw; from round 11 every candidate is 27 copies that differ only in where the first order rests. On that
 standard:
@@ -16,11 +16,11 @@ standard:
   book in one ladder.
 - **Round 8's funding tilt is withdrawn.** It passed on one path; 6 of its 27 copies have a 14.6% drawdown from
   one stuck 3x ladder.
-- The other thirty-three failed; a round on 2023 to 2025 mark prices gave no verdict (the data misprices the
+- The other thirty-six failed, the last of them add distances scaled to each coin's volatility (round 12); a round on 2023 to 2025 mark prices gave no verdict (the data misprices the
   strategy). `pick=5`'s gauntlet rung is **holds out of sample**, deflated Sharpe not passed.
 Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 927 distinct results in the ledger now, about 700 of them ensemble copies.
+count when its gauntlet ran). 1732 distinct results in the ledger now, most of them ensemble copies.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -549,6 +549,37 @@ property of the rule: the BCH trip was a negative-funding entry.
 | Tighter worst case | `pick=5` | +24.0% / 6.6% |
 | Best ratio, vault's size | `pick=5 fr_max=0` | +7.6% / 1.5% |
 | Best ratio, sized to the vault's worst case | `pick=5 fr_max=0 base=0.0083 max_open=3` | +17.3% / 2.5% |
+
+## Round 12: add distances by each coin's volatility (measured, 27 copies; fails)
+
+Every coin's ladder spans the same 15%. The idea: give each coin the same ladder in units of its own
+volatility. `gap_vol=1` multiplies a trip's add distances by the coin's 7-day hourly volatility over the mean of
+the markets it could have opened in (0.5 to 2, fixed when the trip opens), so the average gap stays the vault's.
+Under `pick=5` that hands HYPE 1.22x at the median, ADA 1.00x, DOGE 0.96x, LINK 0.94x, SOL 0.90x, ETH 0.88x and
+BNB 0.85x. Round 1 tried a cruder form on one path (entry, adds and exits together, 24-hour volatility against
+a fixed number) and it failed.
+
+| 27 copies, medians (low to high) | Full: return | Full: max DD | Ratio | Copies with a drawdown over 1.5x the median | First half ratio | Second half ratio |
+|---|---|---|---|---|---|---|
+| `pick=5` | +23.95% (23.11 to 24.60) | 6.62% (6.01 to 6.69) | 3.62 | 0 | 2.32 | 2.60 |
+| Adds scaled by volatility | +23.18% (6.62 to 24.75) | 6.19% (6.13 to 13.55) | 3.74 | 9 | 2.49 | 1.62 |
+| Adds and exits scaled | +22.53% (5.14 to 24.41) | 6.17% (6.13 to 12.21) | 3.65 | 1 | 1.78 | 1.58 |
+| Widen only (multiplier 1 to 2) | +21.88% (21.23 to 22.46) | 6.67% (6.04 to 6.77) | 3.28 | 0 | 2.12 | 2.23 |
+| Replica (ten markets) | +31.47% (30.11 to 33.26) | 8.60% (7.74 to 10.23) | 3.66 | 0 | 2.36 | 1.97 |
+| Replica, adds scaled | +27.58% (23.82 to 29.11) | 10.29% (6.74 to 19.51) | 2.68 | 3 | 1.23 | 0.96 |
+| Negative only, 2.3x, three slots | +17.31% (16.53 to 18.00) | 2.49% (2.35 to 2.63) | 6.95 | 0 | 4.06 | 2.84 |
+| The same, adds scaled | +17.95% (17.21 to 18.69) | 3.75% (3.45 to 4.22) | 4.79 | 0 | 2.79 | 3.61 |
+| The same, widen only | +16.92% (16.22 to 17.67) | 2.49% (2.35 to 2.63) | 6.80 | 0 | 4.00 | 2.75 |
+
+- **Scaled both ways, it adds a tail.** The median barely moves and a third of the `pick=5` copies end between
+  +6.6% and +15.5%. In the copy looked at (`entry=-0.0088 ema_hours=13`) the trips that stick are the ones given
+  tighter gaps: LINK at 0.73x, spent 11.0% under its first fill on 2026-01-29 and held to 2026-05-10; SOL at
+  0.83x, opened 2026-01-18 and still open on 2026-11-01. Without the rule that copy has no trip over a month.
+- **Widen only, it costs income and saves nothing.** No bad copies, the same drawdown in every window, and 0.4 to
+  2.1 points less return. A wider ladder holds less when it exits.
+- **Why (inferred):** the falls that spend a ladder are market-wide. They arrive the same size whatever a coin's
+  own 7-day volatility says, so a ladder shortened to fit a calmer coin is spent early, and a ladder lengthened
+  for a wilder one is spent anyway. This is round 6's cliff on the tight side, reached one coin at a time.
 
 ## Fill model check against the tape (measured)
 

@@ -23,6 +23,9 @@
 #                           the deeper adds are the plain size (0 = the whole ladder is boosted)
 #   high_gap/high_hours     no new trips in a market whose last hourly close is within high_gap of its highest
 #                           hourly close of the last high_hours
+#   gap_vol                 1: a trip's add distances are multiplied by the market's volatility over pick_hours
+#                           divided by the mean of the markets it could have opened in (gap_floor to 2, fixed
+#                           when the trip opens); 2: its exits too
 #   fr_skip                 no new trips in markets whose funding rate is at or above this
 #   cap                     each open trip reserves its full ladder at the first fill's price; no new trip
 #                           while the reserved notional would pass cap x equity (0 = off)
@@ -45,7 +48,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
              oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02,
              pick=0, pick_hours=168, exit_scale=1.0, step_scale=1.0, fr_max=None, fr_hours=1,
              fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0, boost_buys=0,
-             high_gap=0.0, high_hours=168):
+             high_gap=0.0, high_hours=168, gap_vol=0, gap_floor=0.5):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
     steps = [float(v) * step_scale for v in (steps.split(",") if isinstance(steps, str) else steps)]
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
@@ -85,7 +88,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         avg = t["cost"] / t["qty"]
         i = t["level"]                       # buys so far, 1 = the entry
         s = t["scale"]
-        out_px = avg * (1 + s * exits[min(i, len(exits)) - 1])
+        g = t.get("gap", 1.0)
+        out_px = avg * (1 + s * (g if gap_vol == 2 else 1.0) * exits[min(i, len(exits)) - 1])
         cut = 0.0
         if trim_level and i >= trim_level and i > 1:
             q, px = t["adds"][-1]
@@ -99,7 +103,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
             q = mult[i - 1] * held
             if n and t["tilt"] != 1.0:       # buy i + 1, the plain size past the boosted buys
                 q = sizes[i] * t["adds"][0][0] / t["tilt"] * (t["tilt"] if i + 1 <= n else 1.0)
-            t["next"] = ctx.limit(m, q, t["first"] * (1 + s * steps[i - 1]))
+            t["next"] = ctx.limit(m, q, t["first"] * (1 + s * g * steps[i - 1]))
 
     def step(ctx, h):
         st = ctx.state
@@ -116,8 +120,11 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                     ema[m] = c if m not in ema else ema[m] * (1 - a) + c * a
                 if vols is not None and vols[m] is not None:
                     st.setdefault("vol", {})[m] = vols[m]
-            if pick:
+            if pick or gap_vol:
                 v = h.close.vol(int(pick_hours))
+            if gap_vol:
+                st["v7"] = {m: v[m] for m in universe if v[m] is not None}
+            if pick:
                 ranked = sorted((m for m in universe if v[m] is not None), key=lambda m: -v[m] if pick > 0 else v[m])
                 st["allowed"] = set(ranked[:abs(int(pick))]) if len(ranked) >= abs(pick) else None   # pick < 0: the calmest, a control
             if fr_max is not None or fr_skip is not None:
@@ -174,6 +181,10 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 want[m] = size * k * ctx.equity * ladder
                 st.setdefault("tilt", {})[m] = tilt
                 st.setdefault("scale", {})[m] = s
+                if gap_vol:
+                    v7 = st.get("v7", {})
+                    pool = [v7[x] for x in (allowed if allowed is not None else universe) if x in v7]
+                    st.setdefault("gap", {})[m] = max(gap_floor, min(2.0, v7[m] * len(pool) / sum(pool))) if m in v7 and pool else 1.0
 
     def on_fill(ctx, f):
         st = ctx.state
@@ -184,7 +195,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 t = trips[m] = {"first": f.price, "qty": 0.0, "cost": 0.0, "level": 0,
                                 "scale": st.get("scale", {}).get(m, 1.0),
                                 "reserve": st.get("want", {}).get(m, 0.0),
-                                "tilt": st.get("tilt", {}).get(m, 1.0)}
+                                "tilt": st.get("tilt", {}).get(m, 1.0),
+                                "gap": st.get("gap", {}).get(m, 1.0) if gap_vol else 1.0}
                 ent.pop(m, None)
                 if cap > 0:                  # pull the entries that no longer fit under the cap
                     held = sum(x["reserve"] for x in trips.values())

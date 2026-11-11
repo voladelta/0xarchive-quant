@@ -574,3 +574,53 @@ vault's; nothing is fitted. `gap_vol=2` scales the exits by the same number.
 drawdown is higher and the worst copy's drawdown is smaller, in the full run and both halves. The minute window
 (27 copies) is reported for G1 and G4. Also reported: the range of multipliers each coin gets, and how many
 copies end the run holding a trip of six or more buys.
+
+### Round 12 result: fails, and one follow-up declared before running
+
+Multipliers the rule hands out (trips on the default copy): under `pick=5`, HYPE 1.22 at the median, ADA 1.00,
+DOGE 0.96, LINK 0.94, SOL 0.90, ETH 0.88, BNB 0.85, and 0.80 to 1.44 for nine trips in ten. Over all ten: HYPE
+1.53, ADA 1.25, LINK and DOGE 1.16, SOL 1.08, XRP 1.00, ETH 0.98, BNB 0.78, BTC 0.67, TRX 0.50.
+
+| 27 copies, medians (low to high) | Full: return | Full: max DD | Ratio | Bad copies | First half ratio | Second half ratio |
+|---|---|---|---|---|---|---|
+| `pick=5` | +23.95% (23.11 to 24.60) | 6.62% (6.01 to 6.69) | 3.62 | 0 | 2.32 | 2.60 |
+| G1 `pick=5 gap_vol=1` | +23.18% (6.62 to 24.75) | 6.19% (6.13 to 13.55) | 3.74 | 9 | 2.49 | 1.62 |
+| G2 `pick=5 gap_vol=2` | +22.53% (5.14 to 24.41) | 6.17% (6.13 to 12.21) | 3.65 | 1 | 1.78 | 1.58 |
+| Replica | +31.47% (30.11 to 33.26) | 8.60% (7.74 to 10.23) | 3.66 | 0 | 2.36 | 1.97 |
+| G3 the ten, `gap_vol=1` | +27.58% (23.82 to 29.11) | 10.29% (6.74 to 19.51) | 2.68 | 3 | 1.23 | 0.96 |
+| R8a | +17.31% (16.53 to 18.00) | 2.49% (2.35 to 2.63) | 6.95 | 0 | 4.06 | 2.84 |
+| G4 R8a with `gap_vol=1` | +17.95% (17.21 to 18.69) | 3.75% (3.45 to 4.22) | 4.79 | 0 | 2.79 | 3.61 |
+
+"Bad copies" are those with a drawdown over 1.5x the median. Minute window, 27 copies: G1 +1.74% / 2.13%
+(`pick=5` +1.72% / 2.13%); G4 +1.78% / 2.85% (R8a +1.86% / 2.99%).
+
+All four fail. G1 has the median of `pick=5` and a third of its copies end between +6.6% and +15.5%.
+
+**Why (measured, the copy `entry=-0.0088 ema_hours=13`).** The trips that stick are the ones given tighter gaps:
+LINK at 0.73x, spent 11.0% under its first fill on 2026-01-29 and held to 2026-05-10; SOL at 0.83x, spent at
+12.5%, opened 2026-01-18 and still open on 2026-11-01; ADA at 0.86x, BNB at 0.94x. Without the rule the same
+copy has no trip longer than a month. The falls that spend a ladder are market-wide; they arrive the same size
+whatever a coin's own 7-day volatility says, and a ladder shortened to fit a calmer coin is spent early in them.
+This is round 6's cliff, reached one coin at a time.
+
+Follow-up, the one-sided form: widen for the wilder coins, never tighten (`gap_vol=1 gap_floor=1`: the
+multiplier is held between 1 and 2).
+- G5: `pick=5 gap_vol=1 gap_floor=1`, against `pick=5`.
+- G6: R8a with the same, against R8a.
+Same rule, 27 copies, full run and both halves. The prior is round 6's 1.5x on every coin, which was mildly
+worse on one path.
+
+### Round 12, follow-up result: fails
+
+| 27 copies, medians (low to high) | Full: return | Full: max DD | Ratio | Bad copies | First half ratio | Second half ratio |
+|---|---|---|---|---|---|---|
+| `pick=5` | +23.95% (23.11 to 24.60) | 6.62% (6.01 to 6.69) | 3.62 | 0 | 2.32 | 2.60 |
+| G5 `pick=5`, widen only | +21.88% (21.23 to 22.46) | 6.67% (6.04 to 6.77) | 3.28 | 0 | 2.12 | 2.23 |
+| R8a | +17.31% (16.53 to 18.00) | 2.49% (2.35 to 2.63) | 6.95 | 0 | 4.06 | 2.84 |
+| G6 R8a, widen only | +16.92% (16.22 to 17.67) | 2.49% (2.35 to 2.63) | 6.80 | 0 | 4.00 | 2.75 |
+
+Minute window: G5 +1.70% / 2.13%, G6 +1.70% / 2.99%. Widening only removes the bad copies and nothing else: the
+drawdown is unchanged in every window and the return is 0.4 to 2.1 points lower. A wider ladder holds less when
+it exits, so it earns less per trip, and the drawdowns are the market-wide falls that spend every ladder
+whatever its width. Scaling the adds by a coin's own volatility does not help in either direction. 39 changes
+in twelve rounds; 1732 distinct results in the ledger.
