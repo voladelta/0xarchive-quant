@@ -624,3 +624,30 @@ drawdown is unchanged in every window and the return is 0.4 to 2.1 points lower.
 it exits, so it earns less per trip, and the drawdowns are the market-wide falls that spend every ladder
 whatever its width. Scaling the adds by a coin's own volatility does not help in either direction. 39 changes
 in twelve rounds; 1732 distinct results in the ledger.
+
+## Round 13, declared before running (2026-11-11): a time stop on trips that do not come back
+
+**Why now.** Round 1's stop was a price stop (close at the average entry less 4% once five buys are in), judged
+on one path on which every ladder came back, so it looked like pure cost. Round 10 showed that path was one
+fill away from a ten-month stuck ladder. A price stop also fires in the flash crashes that bounce the same day
+(2025-10-10, 2026-01-31). A time stop leaves those alone and only ends trips that have had their chance.
+
+**Rule.** `max_days=N`: a trip still open N days after its first fill is sold at market, the whole position,
+and the market is free to open a new trip by the usual rule. No cooldown, nothing else changes. N is 7, 14
+and 30, fixed here. On the `pick=5` path the trips that ran past ten days lasted 10, 10, 10, 26 and 29 days
+and all closed in profit, so 30 should touch none of them, 14 two and 7 all five.
+
+**Books, 27 copies each, full hourly run.**
+- Clean (no stuck ladder in any copy), where a stop can only cost: `pick=5`; R8a (`pick=5 fr_max=0 base=0.0083
+  max_open=3`). Also both halves.
+- Stuck (a ladder that did not come back), where it should help if it helps anywhere: round 8's tilt (LINK, 6
+  of 27 copies); `pick=5 high_gap=0.03` (DOGE, every copy); negative funding only on the other seven coins,
+  `pick=4 fr_max=0` at the vault's size (BCH).
+
+**Verdict rule, per N.**
+- It caps the tail if, on each of the three stuck books, the worst copy's max drawdown is smaller and the worst
+  copy's return is higher than without the stop.
+- It is affordable if, on both clean books, the median return falls by less than 2 points and the worst copy's
+  drawdown does not rise, in the full run and both halves.
+- An N is adopted only if both hold. Otherwise the report says what it costs and what it buys, and the rules
+  freeze as they are. This is the last round on this data either way.
