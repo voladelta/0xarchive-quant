@@ -19,6 +19,8 @@
 #                           fr_max=None switches it off
 #   fr_boost/fr_else        with fr_max set: the first order is fr_boost x in markets under fr_max and fr_else x
 #                           in the rest (the defaults 1 and 0 make fr_max a filter)
+#   boost_buys              with fr_boost: only the first boost_buys buys of a boosted trip are fr_boost x,
+#                           the deeper adds are the plain size (0 = the whole ladder is boosted)
 #   fr_skip                 no new trips in markets whose funding rate is at or above this
 #   cap                     each open trip reserves its full ladder at the first fill's price; no new trip
 #                           while the reserved notional would pass cap x equity (0 = off)
@@ -40,7 +42,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
              gate_market="", gate_hours=0, max_level=7, stop=0.0, vol_scale=0, vol_ref=0.006, budget=0.0,
              oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02,
              pick=0, pick_hours=168, exit_scale=1.0, step_scale=1.0, fr_max=None, fr_hours=1,
-             fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0):
+             fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0, boost_buys=0):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
     steps = [float(v) * step_scale for v in (steps.split(",") if isinstance(steps, str) else steps)]
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
@@ -53,8 +55,12 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
             held, wide = held + add, wide + add
         mult = new
     full = 1.0                               # a full ladder, in first orders
+    sizes = [1.0]                            # each buy, in first orders
     for v in mult[:max(0, min(len(steps), int(max_level) - 1))]:
+        sizes.append(v * full)
         full += v * full
+    n = int(boost_buys)                      # a part-boosted ladder, in its own (boosted) first orders
+    full_part = (fr_boost * sum(sizes[:n]) + sum(sizes[n:])) / fr_boost if n and fr_boost > 0 else full
     a = 2 / (ema_hours + 1)
     ga = 2 / (gate_hours + 1) if gate_hours else 0.0
 
@@ -87,7 +93,10 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         if stop > 0 and i >= max_level:      # the stop only arms once the ladder is spent
             t["stop"] = ctx.stop(m, -held, avg * (1 - stop), reduce_only=True)
         if i <= len(steps) and i < max_level:
-            t["next"] = ctx.limit(m, mult[i - 1] * held, t["first"] * (1 + s * steps[i - 1]))
+            q = mult[i - 1] * held
+            if n and t["tilt"] != 1.0:       # buy i + 1, the plain size past the boosted buys
+                q = sizes[i] * t["adds"][0][0] / t["tilt"] * (t["tilt"] if i + 1 <= n else 1.0)
+            t["next"] = ctx.limit(m, q, t["first"] * (1 + s * steps[i - 1]))
 
     def step(ctx, h):
         st = ctx.state
@@ -135,13 +144,15 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         for m in universe:
             if m in trips or m not in ema or ctx.price(m) is None:
                 continue
-            k = front
+            k, tilt = front, 1.0
             if fr_max is not None:
-                k *= fr_boost if m in st.get("cheap", ()) else fr_else
+                tilt = fr_boost if m in st.get("cheap", ()) else fr_else
+                k *= tilt
             if fr_skip is not None and m in st.get("dear", ()):
                 k = 0.0
             ok = room and k > 0 and (allowed is None or m in allowed)
-            if ok and cap > 0 and reserved + size * k * ctx.equity * full > cap * ctx.equity:
+            ladder = full_part if n and tilt == fr_boost else full
+            if ok and cap > 0 and reserved + size * k * ctx.equity * ladder > cap * ctx.equity:
                 ok = False
             if not ok:
                 cancel(ctx, ent.pop(m, None))
@@ -151,7 +162,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 s = max(0.5, min(3.0, st.get("vol", {}).get(m, vol_ref) / vol_ref)) if vol_scale else 1.0
                 px = entry_px(ema[m], 1 + s * entry)
                 ent[m] = ctx.limit(m, size * k * ctx.equity / px, px)
-                want[m] = size * k * ctx.equity * full
+                want[m] = size * k * ctx.equity * ladder
+                st.setdefault("tilt", {})[m] = tilt
                 st.setdefault("scale", {})[m] = s
 
     def on_fill(ctx, f):
@@ -162,7 +174,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
             if t is None:
                 t = trips[m] = {"first": f.price, "qty": 0.0, "cost": 0.0, "level": 0,
                                 "scale": st.get("scale", {}).get(m, 1.0),
-                                "reserve": st.get("want", {}).get(m, 0.0)}
+                                "reserve": st.get("want", {}).get(m, 0.0),
+                                "tilt": st.get("tilt", {}).get(m, 1.0)}
                 ent.pop(m, None)
                 if cap > 0:                  # pull the entries that no longer fit under the cap
                     held = sum(x["reserve"] for x in trips.values())

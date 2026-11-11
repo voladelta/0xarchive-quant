@@ -268,7 +268,7 @@ Correction to the declaration: seven vault ladders are 7 x 61.55 x 0.36% = 1.55x
 | R8e negative only, entry -0.5% | +4.93% / 1.67% | +3.52% / 1.05% | +8.60% / 1.67% / 4.28 | +1.02% / 1.67% | fail against its baseline (ratio falls in the first half) |
 | R8f first order 2x | +20.67% / 7.63% | +11.05% / 5.79% | +33.89% / 7.63% / 1.78 | +2.39% / 2.21% | fail: more return, more drawdown |
 
-R8d is the second pass in the study, on the 25th change. R8f did not pass, so no stacked run. The margins in
+R8d is the second pass in the study: nineteen changes through round 6, six in round 7, six here. R8f did not pass, so no stacked run. The margins in
 the second half (2.76% against 2.87%) and on the minute window are thin. Before believing it:
 
 - C3, is it the funding state or just more size? `pick=5 fr_skip=0.0000126 base=0.0044 cap=1.55`: the same
@@ -320,7 +320,7 @@ BCH, opened 2026-05-27 under negative funding, took all seven buys and sat 12 we
 3x that one ladder was 58% of equity and is U1's 22.95% drawdown.
 
 The same thing on the ten: R8d took three 3x trips to all seven buys (ADA and DOGE together on 2026-01-31, SOL
-on 2026-02-05), each about 64% of equity, and each bounced out inside a day. R8d's pass rests on those
+on 2026-02-05), each just under 60% of equity, and each bounced out inside a day. R8d's pass rests on those
 bounces. `cap` bounds the book's notional, not how much of it sits in one coin.
 
 ## Round 9, declared before running (2026-11-11): tilt the shallow buys only
@@ -337,3 +337,17 @@ higher going into the deep buys, so a deep trip needs a bigger bounce (6.4% from
   return over drawdown better in both halves.
 One variant, no tuning of the 4. It replaces R8d as the candidate only if R9a passes; R9b says whether it
 travels.
+
+### Round 9 result: fails on both coin sets
+
+R9a on the ten: +29.77% / 7.24% full against `pick=5`'s +24.01% / 6.59%; first half +18.98% / 5.60%, second
+half +9.13% / 7.24% against +7.45% / 2.87%; minute window +2.49% / 1.82%. More return, and the second-half
+drawdown is two and a half times the baseline's: an ADA trip opened 2026-06-04 took all seven buys and sat ten
+days, because its average entry was too high for the bounce it got. R9b on the seven: +9.06% / 29.45% against
+U0's -6.86% / 26.66%. Trading the concentration tail for a slow-exit tail is worse. R8d stays as round 8 left
+it: a pass on the vault's ten that does not travel. 32 changes in nine rounds, two passes; 220 distinct results
+in the ledger.
+
+Measured exposure on the full hourly run (`ctx.positions` x price over equity, each step): the replica peaks at
+1.21x gross and 0.21x in one coin; `pick=5` at 0.84x and 0.20x; R8d at 1.18x and 0.59x (DOGE, 2026-01-31);
+round 7's 3x filter at 2.38x and 0.60x.

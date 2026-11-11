@@ -4,14 +4,18 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Nineteen changes to the rules were tested in six rounds. One passed the rule set beforehand: **trade only the
-five most volatile of the ten markets** (`pick=5`), which had a smaller drawdown and a higher return over
+Thirty-two changes to the rules were tested in nine rounds. Two passed the rule set beforehand. **Trade only
+the five most volatile of the ten markets** (`pick=5`) had a smaller drawdown and a higher return over
 drawdown than the replica in both halves of the hourly run, the full run and the 39-day minute window. Its
-gauntlet rung is **holds out of sample**, deflated Sharpe not passed (0.00 over 106 trials). The other
-eighteen failed; a round on 2023 to 2025 mark prices gave no verdict (the data misprices the strategy).
+gauntlet rung is **holds out of sample**, deflated Sharpe not passed (0.00 over 106 trials). On top of it, **a
+size tilt by funding state under a worst-case cap** (round 8) made more than `pick=5` at a smaller drawdown
+in every window, +27.42% / 5.20% against +24.01% / 6.59% on the full run; it also **holds out of sample**
+(deflated Sharpe 0.01 over 198 trials), its second-half margin is one point wide, and it failed on seven
+coins outside the vault's list. The other thirty failed; a round on 2023 to 2025 mark prices gave no verdict
+(the data misprices the strategy).
 Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 142 trials in the ledger now.
+count when its gauntlet ran). 220 distinct results in the ledger now.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -317,6 +321,105 @@ $10,000 over 17 months. Whatever the filter does, it is not the funding payment.
 - "Skip markets paying over the base rate" trims the first-half drawdown and does nothing in the second:
   the same shape as the open-interest filter.
 
+## Round 8: more income from the funding state, worst case held at the vault's (measured, hourly bars unless said)
+
+Round 7's near-miss needed three times the first order, which lifts the worst case (every ladder full) from
+the vault's 1.55x equity to 4.7x. Six ways to take more income without that, fixed in STUDY.md before running.
+Baseline is `pick=5` with funding charged.
+
+| Run | 2025-06 to 2026-03: return / max DD | 2026-03 to 2026-11: return / max DD | Full: return / max DD / Sharpe | 39 days, minute: return / max DD | Passed |
+|---|---|---|---|---|---|
+| `pick=5` | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% / 1.82 | +1.81% / 1.94% | |
+| Negative funding only, 2.3x first order, 3 slots | +10.20% / 2.49% | +6.48% / 2.31% | +17.31% / 2.49% / 4.05 | +1.86% / 3.00% | no: less return, minute ratio worse |
+| Negative funding only, 3.45x, 2 slots | +13.45% / 2.82% | +8.38% / 3.46% | +22.90% / 3.46% / 3.73 | +2.18% / 4.19% | no |
+| Tilt: 3x where funding is negative, 1x elsewhere, cap 1.55x | +17.94% / 6.71% | +9.07% / 2.73% | +28.56% / 6.71% / 2.06 | +2.25% / 1.82% | no: first-half drawdown 0.12 points over |
+| **The same, no new trips where funding is over the base rate** | +17.19% / 5.20% | +8.81% / 2.76% | +27.42% / 5.20% / 2.44 | +2.23% / 1.82% | **yes** |
+| Negative funding only, entry 0.5% under the EMA | +4.93% / 1.67% | +3.52% / 1.05% | +8.60% / 1.67% / 4.28 | +1.02% / 1.67% | no (against `pick=5 fr_max=0`) |
+| First order 2x, adds unchanged (`front=2`) | +20.67% / 7.63% | +11.05% / 5.79% | +33.89% / 7.63% / 1.78 | +2.39% / 2.21% | no: more return, more drawdown |
+
+**The pass, in words.** Among the five most volatile markets: where the last settled funding rate is negative,
+the first order is 3x the vault's (1.08% of equity) and the ladder scales with it; where funding sits at the
+base rate, the vault's size; where funding is above the base rate (longs crowded), no new trip. Each open
+trip reserves its full ladder, and a new trip opens only if the reserved notional stays under 1.55x equity,
+the vault's own worst case. Settings: `pick=5 fr_max=0 fr_boost=3 fr_else=1 fr_skip=0.0000126 cap=1.55`, hash
+`cc00955cbe8f1b26` (hourly, full run), `28f3d6a5d5fdb323` (minute window). `tilt-card.md` is its gauntlet card
+(the card prints `params {}`): holds out of sample, deflated Sharpe 0.01 over 198 trials.
+
+**Controls (declared after the pass, before running).**
+
+| Run | First half | Second half | Full: return / max DD | Minute |
+|---|---|---|---|---|
+| The pass | +17.19% / 5.20% | +8.81% / 2.76% | +27.42% / 5.20% | +2.23% / 1.82% |
+| Same skip and cap, every first order 1.22x | +17.73% / 6.09% | +8.46% / 3.75% | +27.63% / 6.09% | +2.09% / 2.22% |
+| Tilt upside down: 3x where funding is not negative | +29.05% / 13.49% | +12.98% / 4.02% | +45.63% / 13.49% | +2.36% / 3.02% |
+
+- **The tilt beats plain size.** Sizing every trip up 22% lands on the same return with a drawdown about a
+  point larger on each hourly window and 0.4 points larger on the minute window.
+- **The drawdown lives in trips opened while funding is not negative.** The upside-down tilt has a return over
+  drawdown of 3.4 against the pass's 5.3.
+
+**Plateau around the pass** (one setting moved; `pick=5`'s second-half drawdown is 2.87%).
+
+| Setting | Full: return / max DD | Second half: return / max DD | Minute |
+|---|---|---|---|
+| The pass (`fr_boost=3 cap=1.55`) | +27.42% / 5.20% | +8.81% / 2.76% | +2.23% / 1.82% |
+| `fr_boost=2` | +25.69% / 5.07% | +8.08% / 2.94% | +2.04% / 1.82% |
+| `fr_boost=4` | +28.75% / 4.91% | +8.97% / 4.91% | +2.15% / 1.82% |
+| `cap=1.25` | +25.36% / 4.58% | +7.91% / 3.97% | +1.91% / 1.82% |
+| `cap=1.6` | +29.02% / 5.16% | +9.07% / 2.90% | +2.41% / 1.94% |
+| `cap=2.0` | +30.73% / 5.23% | +9.50% / 3.89% | +2.59% / 1.94% |
+| `fr_hours=8` (8-hour mean funding) | +25.74% / 2.76% | +8.49% / 2.76% | +2.10% / 1.82% |
+
+- **More profit is a plateau.** Every neighbour beats `pick=5` on return and on drawdown over the full run
+  and the first half; on the minute window each has a higher return and the same or a smaller drawdown.
+- **Less drawdown in the second half is one point.** The pass has 2.76% against 2.87%; two neighbours tie
+  (2.90%, 2.94%) and three are clearly worse (3.89% to 4.91%). The full-run drawdown cut comes from the first
+  half.
+
+**It does not travel** (declared before running; the seven other markets the vault has traded, `pick=4`).
+
+| Run on AVAX, BCH, HBAR, LTC, NEAR, SUI, XLM | First half | Second half | Full: return / max DD |
+|---|---|---|---|
+| Ladder, four most volatile | -10.37% / 16.68% | +7.98% / 8.56% | -6.86% / 26.66% |
+| With the pass's tilt, skip and cap | +5.48% / 8.69% | +8.59% / 22.95% | +10.75% / 31.50% |
+| Negative funding only, normal size | +3.75% / 0.59% | +2.44% / 7.98% | +6.29% / 7.98% |
+
+- On these coins the tilt adds return and adds drawdown. The second half is one trip: BCH, opened 2026-05-27
+  under negative funding, took all seven buys and sat 12 weeks before its exit filled. At 3x that ladder was
+  58% of equity.
+- The same thing happened on the ten and ended well: three 3x trips took all seven buys (ADA and DOGE together
+  on 2026-01-31, SOL on 2026-02-05), each just under 60% of equity, and each bounced out inside a day. **The pass
+  rests on those bounces.**
+- **Exposure, measured on the full hourly run:** the replica peaks at 1.21x equity gross and 0.21x in one coin;
+  `pick=5` at 0.84x and 0.20x; the pass at 1.18x and 0.59x. The cap holds the book under the vault's worst
+  case. It does not limit how much sits in one coin, and that tripled.
+
+**How much to believe it.** It passes the rule set beforehand, on the vault's ten, with a control that says
+the funding state is doing the work. Against that: it is the second pass in 31 tries; the second-half margin
+is 0.11 points; it failed on other coins; a full 3x ladder is three fifths of equity in one coin and the test
+window contains no case of one failing to bounce on the ten. The gain over `pick=5` is 3.4 points of return in
+17 months and 1.4 points of drawdown. Do not raise `fr_boost` or `cap`: 4x and 2.0 both lost the second-half
+drawdown.
+
+## Round 9: tilt the shallow buys only (measured; fails)
+
+The fix that suggests itself for round 8's tail: 3x on buys one to four only, the vault's own size on buys
+five to seven (`boost_buys=4`), so a full ladder is 1.25x the vault's, not 3x. One variant, declared before
+running.
+
+| Run | First half | Second half | Full: return / max DD | Minute |
+|---|---|---|---|---|
+| `pick=5` | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% | +1.81% / 1.94% |
+| Round 8's pass | +17.19% / 5.20% | +8.81% / 2.76% | +27.42% / 5.20% | +2.23% / 1.82% |
+| Shallow buys 3x, deep buys 1x | +18.98% / 5.60% | +9.13% / 7.24% | +29.77% / 7.24% | +2.49% / 1.82% |
+| The same on the seven other coins | +0.45% / 13.90% | +8.95% / 10.13% | +9.06% / 29.45% | |
+
+It fails on both coin sets. With the shallow buys large and the deep buys small, the average entry stays high
+and a deep trip needs a 6.4% bounce from its last add, against 4.6%. An ADA trip opened 2026-06-04 sat ten
+days for that reason and made the second-half drawdown 7.24%. It swaps a concentration tail for a slow-exit
+tail, and the second is worse. Same lesson as `front=2` above and the add-spacing cliff in round 6: the
+ladder's geometry is the fragile part.
+
 ## Fill model check against the tape (measured)
 
 Every trade in the ten markets, 2026-10-03 to 2026-11-08, from ironflow/hyperliquid-trades (`build_ticks.py`,
@@ -349,9 +452,8 @@ the minute after the order is placed.
 - **Anything on minute data before 2026-10-03.** The 0xArchive key is on the free plan (30 days) and `0xbt
   data pull` works in whole months, so October was built from ironflow's free trades and the long run from
   ironflow's hourly candles. On hourly bars a take-profit can't fill in the hour its buy filled, the order of
-  a buy and a sell inside one hour is unknown, and the run charged no funding (longs usually pay; about 11% a
-  year on notional held at the base rate). A paid key would let the same variants run on minute data,
-  which matters most for the trim rule.
+  a buy and a sell inside one hour is unknown (funding is charged from round 7 on). A paid key would let the
+  same variants run on minute data, which matters most for the trim rule and for round 8's tilt.
 - **The universe is the vault's own list** of ten markets, not a point-in-time rule. HYPE, the top earner,
   is in it because the vault chose it.
 - **Holdout:** none. Nothing here can pass rung 5.
@@ -368,8 +470,10 @@ python3 trips_replica.py && python3 event_study.py design          # then: event
 
 0xbt backtest mirror.py -p path=trader_oct.json -p clock=1m --start 2026-10-03 --end 2026-11-11   # a83c1281e778a553
 0xbt backtest futurai.py --start 2026-10-03 --end 2026-11-11                                      # 94d028e7e6d6b656
-0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01            # ae0653fe02fee8f4
-0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01 -p pick=5  # 51694e022f0e2210
+0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01            # f0e81c38e8aba68c
+0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01 -p pick=5  # 97a2ad7458718e91
+0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01 -p pick=5 \
+  -p fr_max=0 -p fr_boost=3 -p fr_else=1 -p fr_skip=0.0000126 -p cap=1.55                         # cc00955cbe8f1b26
 python3 trader.py replicate trader_oct.json futurai.py --clock 1m --start 2026-10-03 --end 2026-11-11
 python3 match.py
 ```
