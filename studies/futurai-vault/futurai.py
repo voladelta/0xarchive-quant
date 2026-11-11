@@ -14,6 +14,8 @@
 #   stop                    close a trip at its average entry less this fraction
 #   vol_scale               scale steps and exits by the market's 24h volatility over vol_ref
 #   budget                  no new trip while the cost held across all trips is above this share of equity
+#   pick/pick_hours         new trips only in the `pick` markets with the highest volatility over pick_hours
+#   exit_scale/step_scale   multiply every exit distance / every add distance (for the plateau check)
 #   trim_level/trim         from trim_level buys on, the last add is also offered `trim` above its own fill;
 #                           when that sells, the trip steps back one level and the add rests again
 #   oi_max/oi_hours/oi_size while oi_market's open interest is up more than oi_max over oi_hours, new trips
@@ -28,11 +30,12 @@ EXITS = "0.0056,0.00567,0.0058,0.00603,0.00652,0.0035,0.0035"
 def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14, entry=-0.0088,
              steps=STEPS, mult=MULT, exits=EXITS, base=0.0036, max_open=7,
              gate_market="", gate_hours=0, max_level=7, stop=0.0, vol_scale=0, vol_ref=0.006, budget=0.0,
-             oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02):
+             oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02,
+             pick=0, pick_hours=168, exit_scale=1.0, step_scale=1.0):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
-    steps = [float(v) for v in steps.split(",")] if isinstance(steps, str) else list(steps)
+    steps = [float(v) * step_scale for v in (steps.split(",") if isinstance(steps, str) else steps)]
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
-    exits = [float(v) for v in exits.split(",")] if isinstance(exits, str) else list(exits)
+    exits = [float(v) * exit_scale for v in (exits.split(",") if isinstance(exits, str) else exits)]
     a = 2 / (ema_hours + 1)
     ga = 2 / (gate_hours + 1) if gate_hours else 0.0
 
@@ -82,6 +85,10 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                     ema[m] = c if m not in ema else ema[m] * (1 - a) + c * a
                 if vols is not None and vols[m] is not None:
                     st.setdefault("vol", {})[m] = vols[m]
+            if pick:
+                v = h.close.vol(int(pick_hours))
+                ranked = sorted((m for m in universe if v[m] is not None), key=lambda m: -v[m] if pick > 0 else v[m])
+                st["allowed"] = set(ranked[:abs(int(pick))]) if len(ranked) >= abs(pick) else None   # pick < 0: the calmest, a control
             if oi_max > 0:
                 now, then = h.open_interest.last(), h.open_interest.ago(int(oi_hours))
                 over = [oi_market] if oi_market != "ALL" else universe   # ALL: the markets' mean change
@@ -97,10 +104,11 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         hot = oi_max > 0 and st.get("hot", False)
         size = base * (oi_size if hot else 1.0)
         room = gate and size > 0 and len(trips) < max_open and (budget <= 0 or spent <= budget * ctx.equity)
+        allowed = st.get("allowed") if pick else None
         for m in universe:
             if m in trips or m not in ema or ctx.price(m) is None:
                 continue
-            if not room:
+            if not room or (allowed is not None and m not in allowed):
                 cancel(ctx, ent.pop(m, None))
                 continue
             if new_hour or m not in ent:     # the level only moves when an hour closes

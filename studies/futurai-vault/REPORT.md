@@ -4,10 +4,14 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Thirteen changes to the rules were tested in four rounds and none beat the vault's own settings by the rule
-set beforehand; a fifth round on 2023 to 2025 mark prices gave no verdict (the data misprices the strategy). Verdicts: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
+Nineteen changes to the rules were tested in six rounds. One passed the rule set beforehand: **trade only the
+five most volatile of the ten markets** (`pick=5`), which had a smaller drawdown and a higher return over
+drawdown than the replica in both halves of the hourly run, the full run and the 39-day minute window. Its
+gauntlet rung is **holds out of sample**, deflated Sharpe not passed (0.00 over 106 trials). The other
+eighteen failed; a round on 2023 to 2025 mark prices gave no verdict (the data misprices the strategy).
+Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 60 trials in the ledger now.
+count when its gauntlet ran). 106 trials in the ledger now.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -216,12 +220,69 @@ ironflow/hyperliquid-open-interest carries an hourly mark price from May 2023, t
   stops the small exits from filling (thin books, a slower bot, wider spreads) moves it from a 10% drawdown
   toward a 40% one. (inferred)
 
+## Round 6: which markets, and how fragile the vault's numbers are
+
+### Selection by volatility (measured, hourly bars; nothing fitted, so every window counts)
+
+New trips only in the `pick` markets with the highest 7-day volatility of hourly returns, re-ranked each hour.
+
+| Run | 2025-06 to 2026-03: return / max DD | 2026-03 to 2026-11: return / max DD | Full: return / max DD / Sharpe | 39 days, minute | Passed |
+|---|---|---|---|---|---|
+| Replica (ten markets) | +20.62% / 10.38% | +9.49% / 4.78% | +31.98% / 10.38% / 1.42 | -0.17% | |
+| Seven most volatile (`pick=7`) | +19.99% / 8.81% | +9.11% / 4.64% | +30.85% / 8.81% / 1.65 | +1.45% | no: second half 1.96 against 1.99 |
+| **Five most volatile (`pick=5`)** | +15.83% / 6.53% | +7.44% / 2.87% | +24.40% / 6.53% / 1.84 | +1.81% | **yes** |
+| Control: five slots, any market (`max_open=5`) | +19.01% / 7.95% | +8.00% / 5.21% | +28.45% / 7.95% / 1.46 | +1.18% | |
+| Control: five calmest (`pick=-5`) | +2.28% / 8.30% | +3.14% / 4.52% | +9.79% / 8.68% / 0.66 | -1.41% | |
+| 17 markets the vault ever traded, no pick | +5.65% / 17.23% | +8.82% / 11.68% | +9.11% / 23.98% / 0.36 | | |
+| 17 markets, ten most volatile | +2.30% / 12.47% | +7.80% / 9.60% | +5.41% / 22.53% / 0.28 | | no |
+
+- **The ranking does the work, not just holding fewer coins.** The five most volatile make +24.4% and the five
+  calmest +9.8% at a larger drawdown. Five unranked slots keep most of the return but not the drawdown cut in
+  the second half. The vault's own fills say the same thing independently: its best markets per dollar held
+  were HYPE, LINK and ADA and its worst BTC.
+- **Why it works (inferred):** the exit is a fixed +0.56%. A volatile coin crosses that many times a day; a
+  calm one ties up a slot and a ladder for the same exit.
+- **What it costs:** about a quarter of the return (24.4% against 32.0%) for a drawdown 37% smaller. It is a
+  better ratio, not more money. Size the first order up by a quarter and the drawdown comes back.
+- **How much to believe it:** it is the one pass in nineteen tries, on hourly bars, with no funding and no
+  holdout; deflated Sharpe 0.00 over 106 trials. HYPE made 28% of its gains. The minute-window gain is mostly
+  one avoided stuck trip. Treat it as the best-supported change here, not as proven.
+- **The vault's ten are a good list.** The wider 17-market book is far worse (24% drawdown), with or without
+  the pick. Part of the vault's result is which markets it chose, and that choice can't be tested here.
+
+`pick5-card.md` is its gauntlet card (the card prints `params {}`; the numbers are the `pick=5` run, hash `51694e022f0e2210`).
+
+### Plateau check on the vault's own settings (measured; first half / second half of the hourly run)
+
+| Setting moved | Return / max DD, 2025-06 to 2026-03 | Return / max DD, 2026-03 to 2026-11 |
+|---|---|---|
+| Vault's settings | +20.62% / 10.38% | +9.49% / 4.78% |
+| Exits x0.5 | +14.10% / 6.49% | +6.08% / 3.35% |
+| Exits x0.75 | +17.87% / 6.49% | +7.79% / 3.55% |
+| Exits x1.5 | +25.90% / 10.52% | +12.45% / 7.84% |
+| Exits x2 | +26.66% / 13.52% | +16.26% / 7.52% |
+| Add distances x0.75 | -28.63% / 41.88% | +12.91% / 6.73% |
+| Add distances x1.5 | +2.87% / 13.37% | +5.95% / 4.34% |
+| Entry 0.5% under the EMA | -3.70% / 19.79% | +10.88% / 7.72% |
+| Entry 1.2% under | +11.59% / 10.92% | +7.98% / 1.83% |
+| Entry 1.6% under | +14.55% / 5.65% | +5.91% / 3.52% |
+| EMA 6 hours | +19.13% / 6.67% | +8.22% / 5.50% |
+| EMA 24 hours | +12.39% / 10.55% | +8.89% / 9.19% |
+| EMA 48 hours | +4.64% / 10.84% | +9.27% / 8.34% |
+
+- **Exits are a plateau.** Wider exits earn more and draw down more, in step; no setting is clearly better.
+- **Add distances are a peak with a cliff.** A quarter tighter and the first half loses 29% with a 42% drawdown;
+  half wider and the return is gone. The vault's spacing is the fragile part: it fits how far these markets
+  fell in this sample, and a sample with deeper falls would want wider steps.
+- **Entry depth has a cliff on the shallow side** (0.5% under loses money in the first half) and trades return
+  for drawdown on the deep side. **A longer EMA is worse**; 6 to 14 hours is flat.
+- None of these is adopted. They are twelve more tries on the same data.
+
 ## Not tested, and why
 
-- **A sweep of the vault's own numbers** (exit distance, step sizes, entry depth). It would show whether its
-  settings sit on a plateau or a peak, at the price of more trials on a sample that has already had thirteen.
-- **Dropping the weak markets** (BTC, AVAX, XRP, XLM). The per-market table is eight months in sample; testing
-  it on the same months would be fitting.
+- **The vault's real deep-trip handling** (its partial sells and the two "close everything" minutes). The trim
+  rule in round 4 is a guess at it; 39 deep trips are too few to read a trigger from.
+- **Order-book and cross-venue features** (spread, depth, CEX lead-lag): not in any dataset used here.
 - **Anything on minute data before 2026-10-03.** The 0xArchive key is on the free plan (30 days) and `0xbt
   data pull` works in whole months, so October was built from ironflow's free trades and the long run from
   ironflow's hourly candles. On hourly bars a take-profit can't fill in the hour its buy filled, the order of
@@ -245,6 +306,7 @@ python3 trips_replica.py && python3 event_study.py design          # then: event
 0xbt backtest mirror.py -p path=trader_oct.json -p clock=1m --start 2026-10-03 --end 2026-11-11   # a83c1281e778a553
 0xbt backtest futurai.py --start 2026-10-03 --end 2026-11-11                                      # 94d028e7e6d6b656
 0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01            # ae0653fe02fee8f4
+0xbt backtest futurai.py --data data1h/hyperliquid --start 2025-06-05 --end 2026-11-01 -p pick=5  # 51694e022f0e2210
 python3 trader.py replicate trader_oct.json futurai.py --clock 1m --start 2026-10-03 --end 2026-11-11
 python3 match.py
 ```

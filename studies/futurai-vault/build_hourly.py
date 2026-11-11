@@ -4,7 +4,8 @@ Coarse on purpose: for drawdowns and for comparing variants, not for a headline 
 import duckdb, pathlib
 c = duckdb.connect(); c.execute("INSTALL httpfs; LOAD httpfs;")
 MONTHS = [f"{y}-{m:02d}" for y in (2025, 2026) for m in range(1, 13) if (2025, 6) <= (y, m) <= (2026, 10)]
-COINS = "ADA LINK HYPE SOL DOGE XRP ETH TRX BNB BTC".split()
+import sys
+COINS = sys.argv[1].split(",") if len(sys.argv) > 1 else "ADA LINK HYPE SOL DOGE XRP ETH TRX BNB BTC".split()
 furls = [f"https://huggingface.co/datasets/ironflow/hyperliquid-funding/resolve/main/data/{m}.parquet" for m in MONTHS]
 c.execute(f"""CREATE TABLE fund AS SELECT coin, epoch_ms(date_trunc('hour', timestamp)) ts, any_value(funding_rate) funding_rate, any_value(premium) premium
               FROM read_parquet({furls}) WHERE dex='' AND coin IN ({','.join(repr(x) for x in COINS)}) GROUP BY 1, 2""")

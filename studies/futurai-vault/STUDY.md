@@ -9,7 +9,8 @@ long-only, buys dips, sells rebounds, max leverage 1.5x). Study started 2026-11-
 2. Skill or luck: does its book beat its nulls? **answered** (mirror gauntlet)
 3. What rules produce the book? **partly answered** (ladder and exits exact; entry level rough; deep-trip
    handling not found; the replica misses the 0.5 return-correlation bar)
-4. Does a changed rule set do better than the replica on the same data? **answered: no**, thirteen tries
+4. Does a changed rule set do better than the replica on the same data? **answered: one of nineteen does**
+   (`pick=5`, the five most volatile markets; holds out of sample, deflated Sharpe not passed)
    (REPORT.md; the minute window is 39 days and the 17-month run is on hourly bars)
 
 ## Hypothesis
@@ -154,3 +155,36 @@ bars give +31.98% and 10.38%. Mark bars have about half the real hourly range (B
 +0.56% exits mostly fill inside the hour, and without them trips stay open and ladders run deep. So this
 dataset cannot price the strategy, and a pass or fail on it is not a verdict. What it does show is in
 REPORT.md. (`0xbt data check` also flags these files: price rows before the engine's 2025-03-22 fills era.)
+
+## Round 6, declared before running (2026-11-11): which markets, and a plateau check
+
+**Selection.** The vault's best markets per dollar held were its most volatile (HYPE, LINK, ADA) and its
+worst was BTC. As a point-in-time rule: new trips only in the `pick` markets with the highest 7-day
+volatility of hourly returns. The numbers are fixed here, not tuned:
+- R6a: the vault's ten, `pick=7` (the slot count).
+- R6b: the vault's ten, `pick=5`.
+- R6c: the 17 markets the vault has ever traded (its ten plus AVAX, BCH, HBAR, LTC, NEAR, SUI, XLM), `pick=10`.
+  TON is left out because it delisted in June 2026 and the hourly candles stop; that is a small survivorship
+  bias in this variant's favour. R6c's own baseline is the same 17 with no pick.
+No design window (nothing is fitted), so both halves and the full hourly run count; same kill condition.
+
+**Plateau check.** One setting moved at a time around the vault's own: `exit_scale` 0.5, 0.75, 1.5, 2;
+`step_scale` 0.75, 1.5; `entry` -0.005, -0.012, -0.016; `ema_hours` 6, 24, 48. This describes the surface
+(a plateau or a peak); a neighbour that scores higher is a thing to test on new data, not a setting to adopt.
+
+### Round 6, selection result, and two controls declared before running them
+
+R6b (`pick=5`) is the first variant to pass: smaller drawdown and higher return over drawdown than the
+replica in both halves, the full run and the minute window. R6a (`pick=7`) passes except the second half
+(1.96 against 1.99). R6c fails: the 17-market book is far worse than the ten with or without the pick.
+Sixteen tries before this one, so a pass can be luck. Two controls to see whether volatility ranking is doing
+the work or just holding fewer coins:
+- C1: `max_open=5`, no pick (five slots, any market).
+- C2: `pick=-5`, the five calmest markets (if ranking matters this should be clearly worse than R6b).
+
+### Round 6, controls and plateau result
+
+C1 (five unranked slots) keeps most of the return and loses the second-half drawdown cut; C2 (five calmest)
+makes +9.79% against R6b's +24.40% at a larger drawdown. The ranking does the work. Plateau check: exits
+are a plateau; add distances are a peak with a cliff on the tight side; shallow entries and long EMAs are
+worse (REPORT.md). 106 trials. `pick=5` gauntlet: holds out of sample, deflated Sharpe 0.00 over 106 trials.
