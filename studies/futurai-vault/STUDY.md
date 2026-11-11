@@ -351,3 +351,48 @@ in the ledger.
 Measured exposure on the full hourly run (`ctx.positions` x price over equity, each step): the replica peaks at
 1.21x gross and 0.21x in one coin; `pick=5` at 0.84x and 0.20x; R8d at 1.18x and 0.59x (DOGE, 2026-01-31);
 round 7's 3x filter at 2.38x and 0.60x.
+
+## Round 10, declared before running (2026-11-11): from first principles, what a trip costs
+
+**The mechanics.** Every trip closes at its average entry plus a fixed 0.35% to 0.65%. So income is the same
+per trip in any market state, and a filter cannot find "better" trips. What differs is what a trip costs the
+book while it is open: its loss at each hourly close. A spent ladder is 61.55 first orders riding the market;
+at 25% under its first fill it is 8.4 first orders under water, the income of 580 average trips. The whole
+drawdown is a few spent ladders, held at once, through a fall longer than the ladder (15%).
+
+**The observation** (`observe.py design`: the 3,513 replica trips opened before 2026-03-01, nothing later).
+For each trip: profit, worst open loss (mae), open loss summed over its life (ulcer), and its share of the
+book's worst hours (crash). Sorted into fifths of 38 things known at the last hourly close before entry.
+- The worst 2% of hours are carried by 63 trips. Round 3 asked "will this trip take five buys" and found
+  nothing (AUC 0.5) because depth is common and cheap. The cost is in a few trips, and it is time under water.
+- Profit per trip is flat across every fifth of every feature (0.012 to 0.018 first orders).
+- Cost is not. Trips opened within 3.2% of the coin's 7-day high (the top fifth) are 20% of trips, 19.5% of
+  profit, 74% of ulcer and 81% of crash loss. They take five buys about as often as the rest (5.8% against
+  3.0% to 5.4%); they just stay under.
+- The same fifth shows up under every gauge of "this coin has been running": 24h return over +1.7% (72% of
+  ulcer), top fifth of the 7-day range (70%), 17 hours or more since the coin's last trip closed (78%), funding
+  above the base rate (11% of trips, 41%), and the highest fifths of the EMA's 24h slope, price over the 72h and
+  168h EMA, and BTC's open-interest change. Negative funding is the mirror: 16% of profit, 1.3% of ulcer.
+- What did not sort: displacement over path length (my guess going in), how fast the dip came (`gap`), a volume
+  spike, how many coins are dipping, BTC's own dip, hour and weekday beyond what three crashes explain.
+
+**The intuition.** A fall longer than the ladder needs height to fall from and leveraged longs to force out.
+The first dip off a high has both; a dip after a fall has neither. Funding, open interest, range position and
+time since the last dip are gauges on the same tank. Rounds 3, 7 and 8 each found one gauge. Price against its
+own recent high is the plainest one and needs no positioning data.
+
+**Variants.** `high_gap=0.03`: no new trip in a market whose last hourly close is within 3% of its highest
+hourly close of the last 168 hours (`high_hours`, the horizon `pick` already uses). The 3% is the design
+half's top-fifth cut, rounded; nothing else is fitted.
+- R10a: `pick=5 high_gap=0.03`, against `pick=5`.
+- R10b: R8d with `high_gap=0.03`, against R8d.
+- R10c: R10b with `base=0.0048` (first order 1.33x, cap still 1.55): spend the freed drawdown. Against R8d.
+- R10d: the other seven coins, `pick=4 high_gap=0.03`, against U0. Nothing was fitted on these coins.
+
+**Rule.** R10a, R10b and R10d by the study's first rule: max drawdown smaller and return over drawdown higher
+in both halves and the full run, and (the ten only) not behind on the minute window in return over drawdown.
+R10c by round 8's rule against R8d (+27.42% / 5.20% full, +17.19% / 5.20% and +8.81% / 2.76% the halves,
++2.23% / 1.82% minute): return at least R8d's on the full run, drawdown smaller in both halves and the full run,
+minute-window return and return over drawdown at least R8d's. The first half found the feature, so it is in
+sample for all of these; the second half, the minute window and the other coins are the test. With three
+crashes behind the design-half numbers this can fail exactly as round 3's open-interest filter did.
