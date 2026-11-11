@@ -252,3 +252,88 @@ vault's seven are 1.53x equity.
 max drawdown smaller in both halves and the full run, and on the minute window return and return over drawdown
 both at least `pick=5`'s. A better ratio on less return is a near-miss, as in round 7. If a lever from A and
 R8f both pass, one stacked run is allowed. Defaults must reproduce `f0e81c38e8aba68c` and `97a2ad7458718e91`.
+
+### Round 8 result, and controls declared before running them
+
+Correction to the declaration: seven vault ladders are 7 x 61.55 x 0.36% = 1.55x equity, not 1.53x. So
+`cap=1.55` sits on the edge: it admits six 1x trips, or two 3x trips and nothing else, until equity grows.
+
+| Variant | First half | Second half | Full: return / max DD / Sharpe | Minute window | Verdict |
+|---|---|---|---|---|---|
+| `pick=5` (baseline) | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% / 1.82 | +1.81% / 1.94% | |
+| R8a negative only, 2.3x, 3 slots | +10.20% / 2.49% | +6.48% / 2.31% | +17.31% / 2.49% / 4.05 | +1.86% / 3.00% | near-miss: less return, minute ratio worse |
+| R8b negative only, 3.45x, 2 slots | +13.45% / 2.82% | +8.38% / 3.46% | +22.90% / 3.46% / 3.73 | +2.18% / 4.19% | fail |
+| R8c tilt 3x/1x, cap | +17.94% / 6.71% | +9.07% / 2.73% | +28.56% / 6.71% / 2.06 | +2.25% / 1.82% | fail: first-half drawdown 0.12 points over |
+| R8d tilt 3x/1x, skip over base rate, cap | +17.19% / 5.20% | +8.81% / 2.76% | +27.42% / 5.20% / 2.44 | +2.23% / 1.82% | **pass** |
+| R8e negative only, entry -0.5% | +4.93% / 1.67% | +3.52% / 1.05% | +8.60% / 1.67% / 4.28 | +1.02% / 1.67% | fail against its baseline (ratio falls in the first half) |
+| R8f first order 2x | +20.67% / 7.63% | +11.05% / 5.79% | +33.89% / 7.63% / 1.78 | +2.39% / 2.21% | fail: more return, more drawdown |
+
+R8d is the second pass in the study, on the 25th change. R8f did not pass, so no stacked run. The margins in
+the second half (2.76% against 2.87%) and on the minute window are thin. Before believing it:
+
+- C3, is it the funding state or just more size? `pick=5 fr_skip=0.0000126 base=0.0044 cap=1.55`: the same
+  skip and cap, every first order 1.22x, which should land near R8d's return. If the tilt matters, C3's
+  drawdown is clearly larger than R8d's at that return.
+- C4, the tilt upside down: `pick=5 fr_max=0 fr_boost=1 fr_else=3 fr_skip=0.0000126 cap=1.55`: 3x where
+  funding is not negative. Should be clearly worse than R8d.
+- Plateau, one setting at a time around R8d: `fr_boost` 2 and 4; `cap` 1.25, 1.6 and 2.0; `fr_hours=8`.
+  The pass should not hang on `cap=1.55` being on the edge above.
+- `0xbt gauntlet` on R8d.
+
+### Round 8, controls and plateau result, and one check on other coins declared before running
+
+- C3 (every first order 1.22x, same skip and cap) lands on R8d's return, +27.63%, with a larger drawdown:
+  6.09% against 5.20% full, 3.75% against 2.76% in the second half, 2.22% against 1.82% on the minute window.
+- C4 (3x where funding is not negative) makes +45.63% with a 13.49% drawdown: return over drawdown 3.4 against
+  R8d's 5.3. The drawdown lives in the trips opened while funding is not negative.
+- Plateau: every neighbour beats `pick=5` on return and on drawdown in the first half, the full run and the
+  minute window. The second half does not hold: R8d's 2.76% against 2.87% becomes 2.90% (`cap=1.6`), 2.94%
+  (`fr_boost=2`), 3.89% (`cap=2.0`), 3.97% (`cap=1.25`), 4.91% (`fr_boost=4`). So "more profit" is a plateau and
+  "less drawdown in the second half" is one point. `fr_hours=8` scored higher than R8d (+25.74% / 2.76% full).
+- Gauntlet on R8d (`tilt-card.md`): holds out of sample, deflated Sharpe 0.01 over 198 trials.
+
+One check on coins R8d was not found on: the seven other markets the vault has traded (AVAX, BCH, HBAR, LTC,
+NEAR, SUI, XLM), hourly bars only. R6c ran them once inside the 17-market book, never with funding.
+- U0: those seven, `pick=4` (the more volatile half, as `pick=5` is of ten).
+- U1: U0 with R8d's tilt, skip and cap.
+- U2: U1 with `fr_hours=8`.
+The tilt carries over if U1 beats U0 on full-run return and max drawdown and on return over drawdown in both
+halves. `fr_hours=8` replaces `fr_hours=1` in the recommendation only if U2 beats U1 on return over drawdown
+in the full run and both halves here, as it did on the ten.
+
+### Round 8, other-coins result, and two normal-size runs declared before running
+
+U0 (the seven, `pick=4`): -6.86% / 26.66% full. U1 (with the tilt): +10.75% / 31.50% full; first half +5.48% /
+8.69% against -10.37% / 16.68%, second half +8.59% / 22.95% against +7.98% / 8.56%. The tilt does not carry
+over: more return, more drawdown, and the second half is far worse. U2 (`fr_hours=8`) does not beat U1, so
+`fr_hours` stays 1. To tell "the funding state means nothing on these coins" from "3x size is what hurts":
+- U3: the seven, `pick=4 fr_max=0` (negative funding only, normal size).
+- U4: the seven, `pick=4 fr_skip=0.0000126` (skip over the base rate only, normal size).
+Read against U0 on return over drawdown; no pass or fail, this is a diagnosis.
+
+### Round 8, diagnosis on the other coins
+
+U3 (negative funding only, normal size): +6.29% / 7.98% full against U0's -6.86% / 26.66%; first half +3.75% /
+0.59%, second half +2.44% / 7.98% against U0's +7.98% / 8.56%. U4 (skip only): +8.00% / 16.94% full. So the
+funding state helps on these coins in the first half and not in the second, and the second half is one trip:
+BCH, opened 2026-05-27 under negative funding, took all seven buys and sat 12 weeks before its exit filled. At
+3x that one ladder was 58% of equity and is U1's 22.95% drawdown.
+
+The same thing on the ten: R8d took three 3x trips to all seven buys (ADA and DOGE together on 2026-01-31, SOL
+on 2026-02-05), each about 64% of equity, and each bounced out inside a day. R8d's pass rests on those
+bounces. `cap` bounds the book's notional, not how much of it sits in one coin.
+
+## Round 9, declared before running (2026-11-11): tilt the shallow buys only
+
+Round 8's tail is the deep end of a 3x ladder. In R8d's run, trips that end within four buys are 96% of trips
+and about 64% of gross income; buys five to seven are where the size is. So: in a market with negative funding,
+buys one to four are 3x the vault's, and buys five to seven are the vault's own size (`boost_buys=4`). A full
+ladder is then 77 first orders, 1.25x the vault's, not 3x. The known cost, from R8f: the average entry sits
+higher going into the deep buys, so a deep trip needs a bigger bounce (6.4% from the last add, against 4.6%).
+
+- R9a: `pick=5 fr_max=0 fr_boost=3 fr_else=1 fr_skip=0.0000126 cap=1.55 boost_buys=4` on the ten. Round 8's
+  rule against `pick=5`, all four windows.
+- R9b: the same on the other seven with `pick=4`, against U0: full-run return and max drawdown both better,
+  return over drawdown better in both halves.
+One variant, no tuning of the 4. It replaces R8d as the candidate only if R9a passes; R9b says whether it
+travels.
