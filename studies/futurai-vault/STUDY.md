@@ -221,3 +221,34 @@ At three times the first order `pick=5 fr_max=0` makes +24.57% with a 4.39% draw
 4.25) against `pick=5`'s +24.01% and 6.59%, but its second-half drawdown is 3.01% against 2.87% and it is behind
 on the minute window: not a pass by the rule above. A near-miss worth a forward test at the normal size.
 142 trials.
+
+## Round 8, declared before running (2026-11-11): more income from the funding state at the vault's worst case
+
+Round 7's near-miss made `pick=5`'s return at a smaller drawdown only by tripling the first order, which lifts
+the worst case (every ladder full) from the vault's 1.5x equity to 4.7x. Three ways to take more income without
+that, fixed here before any run. This is the eighth look at the same 17 months.
+
+**A. Size by funding state, worst case held at the vault's.** A full ladder is 61.55 first orders, so the
+vault's seven are 1.53x equity.
+- R8a: `pick=5 fr_max=0 base=0.0083 max_open=3`: negative funding only, 2.3x the first order, three slots (1.53x).
+- R8b: `pick=5 fr_max=0 base=0.0124 max_open=2`: the same at 3.45x and two slots (1.53x).
+- R8c: `pick=5 fr_max=0 fr_boost=3 fr_else=1 cap=1.55`: a tilt, not a filter. Markets with negative funding
+  open at 3x the first order, the rest at 1x. `cap` is new: each open trip reserves its full ladder, and no new
+  trip opens if the reserved notional would pass 1.55x equity.
+- R8d: R8c plus `fr_skip=0.0000126`: no new trips in markets paying over the base rate (round 7's R7c).
+
+**B. More trips in the good state, same size.**
+- R8e: `pick=5 fr_max=0 entry=-0.005`: the shallower entry the plateau check found worse in general, taken only
+  where funding is negative. Its baseline is `pick=5 fr_max=0`; it counts only if return rises and return over
+  drawdown does not fall, in both halves and the full run.
+
+**C. Front-load the first order.** One-buy trips made 43% of the vault's net profit on 4% of its capital-hours
+(REPORT.md). Round 2 scaled the whole ladder and blew up; this scales only the first order.
+- R8f: `pick=5 front=2`: first order 2x, every add the vault's absolute size. Worst case 7 x 62.55 x 0.36% =
+  1.58x. The cost: the average entry sits higher after each add, so the exit needs a bigger bounce.
+
+**Rule.** Against funding-charged `pick=5` (+24.01% / 6.59% full, +15.46% / 6.59% and +7.45% / 2.87% the halves,
++1.81% / 1.94% on the minute window). "More profit, less drawdown" means: full-run return at least `pick=5`'s,
+max drawdown smaller in both halves and the full run, and on the minute window return and return over drawdown
+both at least `pick=5`'s. A better ratio on less return is a near-miss, as in round 7. If a lever from A and
+R8f both pass, one stacked run is allowed. Defaults must reproduce `f0e81c38e8aba68c` and `97a2ad7458718e91`.
