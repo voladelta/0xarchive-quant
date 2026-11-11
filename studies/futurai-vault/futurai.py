@@ -26,6 +26,7 @@
 #   gap_vol                 1: a trip's add distances are multiplied by the market's volatility over pick_hours
 #                           divided by the mean of the markets it could have opened in (gap_floor to 2, fixed
 #                           when the trip opens); 2: its exits too
+#   max_days                a trip still open this many days after its first fill is sold at market
 #   fr_skip                 no new trips in markets whose funding rate is at or above this
 #   cap                     each open trip reserves its full ladder at the first fill's price; no new trip
 #                           while the reserved notional would pass cap x equity (0 = off)
@@ -48,7 +49,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
              oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02,
              pick=0, pick_hours=168, exit_scale=1.0, step_scale=1.0, fr_max=None, fr_hours=1,
              fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0, boost_buys=0,
-             high_gap=0.0, high_hours=168, gap_vol=0, gap_floor=0.5):
+             high_gap=0.0, high_hours=168, gap_vol=0, gap_floor=0.5,
+             max_days=0.0):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
     steps = [float(v) * step_scale for v in (steps.split(",") if isinstance(steps, str) else steps)]
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
@@ -83,7 +85,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
             cancel(ctx, t.get(key))
             t[key] = None
         held = t["qty"]
-        if held <= 0:
+        if held <= 0 or t.get("closing") is not None:   # nothing rests while the time stop's sell is working
             return
         avg = t["cost"] / t["qty"]
         i = t["level"]                       # buys so far, 1 = the entry
@@ -147,6 +149,13 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 if g is not None:
                     st["gema"] = g if "gema" not in st else st["gema"] * (1 - ga) + g * ga
                     st["gate"] = g >= st["gema"]
+        if max_days > 0:
+            for m, t in trips.items():
+                if t.get("closing") is None and ctx.time - t["t0"] >= max_days * 86_400_000 and abs(ctx.positions[m]) > 1e-12:
+                    for key in ("next", "out", "stop", "trim"):
+                        cancel(ctx, t.get(key))
+                        t[key] = None
+                    t["closing"] = ctx.market(m, -ctx.positions[m])
         gate = st.get("gate", True) if gate_hours else True
         spent = sum(t["cost"] for t in trips.values())
         hot = oi_max > 0 and st.get("hot", False)
@@ -192,7 +201,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         t = trips.get(m)
         if f.size > 0:                       # a buy
             if t is None:
-                t = trips[m] = {"first": f.price, "qty": 0.0, "cost": 0.0, "level": 0,
+                t = trips[m] = {"first": f.price, "qty": 0.0, "cost": 0.0, "level": 0, "t0": f.ts,
                                 "scale": st.get("scale", {}).get(m, 1.0),
                                 "reserve": st.get("want", {}).get(m, 0.0),
                                 "tilt": st.get("tilt", {}).get(m, 1.0),
@@ -222,6 +231,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 for key in ("next", "out", "stop", "trim"):
                     cancel(ctx, t.get(key))
                 del trips[m]
+            elif f.order_id == t.get("closing"):   # a buy slipped in beside the stop: sell the rest next tick
+                t["closing"] = None
             elif trimmed:                    # the last add is sold: back one level, rest it again
                 t["adds"].pop()
                 t["level"] -= 1

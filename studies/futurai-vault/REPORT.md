@@ -4,7 +4,7 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Thirty-nine changes to the rules were tested in twelve rounds. **The last round changed the standard of
+Forty changes to the rules were tested in thirteen rounds. **The last round changed the standard of
 evidence.** A ladder that misses its exit by one fill can sit for months, so one backtest of this strategy is
 one draw; from round 11 every candidate is 27 copies that differ only in where the first order rests. On that
 standard:
@@ -16,11 +16,12 @@ standard:
   book in one ladder.
 - **Round 8's funding tilt is withdrawn.** It passed on one path; 6 of its 27 copies have a 14.6% drawdown from
   one stuck 3x ladder.
-- The other thirty-six failed, the last of them add distances scaled to each coin's volatility (round 12); a round on 2023 to 2025 mark prices gave no verdict (the data misprices the
+- The other thirty-seven failed, the last of them add distances scaled to each coin's volatility (round 12)
+  and a time stop on trips that do not come back (round 13); a round on 2023 to 2025 mark prices gave no verdict (the data misprices the
   strategy). `pick=5`'s gauntlet rung is **holds out of sample**, deflated Sharpe not passed.
 Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 1732 distinct results in the ledger now, most of them ensemble copies.
+count when its gauntlet ran). 2079 distinct results in the ledger now, most of them ensemble copies.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -581,6 +582,53 @@ a fixed number) and it failed.
   own 7-day volatility says, so a ladder shortened to fit a calmer coin is spent early, and a ladder lengthened
   for a wilder one is spent anyway. This is round 6's cliff on the tight side, reached one coin at a time.
 
+## Round 13: a time stop on trips that do not come back (measured, 27 copies; not adopted)
+
+`max_days=N`: a trip still open N days after its first fill is sold at market, and the market is free to open
+a new trip. Round 1's stop was a price stop judged on one path where every ladder came back; a price stop also
+fires in the flash crashes that bounce the same day. Declared before running: N of 7, 14 and 30; two clean
+books where a stop can only cost; three books that each had a ladder that did not come back. A length is
+adopted only if it caps the tail on all three stuck books (worst copy's drawdown smaller and return higher) and
+costs under 2 points of median return on the clean ones.
+
+| Book, 27 copies, full run | Stop | Return: median / worst copy | Max drawdown: median / worst copy |
+|---|---|---|---|
+| `pick=5` (clean) | off | +23.95% / +23.11% | 6.62% / 6.69% |
+| | 30 days | +23.95% / +23.11% | 6.62% / 6.69% |
+| | 14 days | +19.73% / +18.81% | 6.62% / 6.69% |
+| | 7 days | +18.65% / +14.58% | 6.21% / 10.05% |
+| Negative only, 2.3x, three slots (clean) | off | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 30 days | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 14 days | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 7 days | +16.89% / +16.18% | 2.49% / 2.63% |
+| Round 8's tilt (LINK stuck 14 weeks, came back) | off | +27.40% / +22.35% | 5.23% / 14.65% |
+| | 30 days | +27.40% / +12.77% | 5.23% / 14.65% |
+| | 14 days | +25.26% / +10.78% | 5.23% / 14.65% |
+| | 7 days | +20.46% / +12.76% | 7.73% / 9.24% |
+| `pick=5 high_gap=0.03` (DOGE never came back) | off | +11.40% / +10.71% | 6.11% / 6.29% |
+| | 30 days | +16.89% / +16.07% | 6.04% / 6.09% |
+| | 14 days | +22.05% / +21.18% | 6.04% / 6.09% |
+| | 7 days | +21.04% / +17.56% | 6.27% / 8.07% |
+| Other seven, negative only (BCH stuck 12 weeks, came back) | off | +5.85% / +5.06% | 7.98% / 15.83% |
+| | 30 days | -1.15% / -4.15% | 7.98% / 9.56% |
+| | 14 days | -1.17% / -4.52% | 7.45% / 9.38% |
+| | 7 days | +0.90% / -0.98% | 4.21% / 4.52% |
+
+- **No length is adopted.** 30 days is free on the clean books and does not cap the tail; 14 days costs `pick=5`
+  4.2 points, because two trips in June 2025 that closed in profit on days 26 and 29 are sold on day 14; 7 days
+  is worse on both counts.
+- **A time stop helps only when the coin never comes back.** On the DOGE book 14 days takes the median from
+  +11.40% to +22.05%.
+- **When the coin comes back late, it sells the low.** LINK came back after 14 weeks and BCH after 12; with a
+  stop the tilt's worst copy falls from +22.35% to between +10.78% and +12.77%, and the other seven go from
+  +5.85% to about -1.2%. In this history late came up more often than never.
+- **For a live book (inferred, a choice and not a tested improvement):** 30 days is the shortest stop that never
+  fired on `pick=5` or the negative-only book in any of 27 copies, and on the one book whose ladder never
+  returned it took back about half the loss (+11.40% to +16.89%).
+
+The halves were declared for the clean books and not run: no length cleared the tail test, so they could not
+change the verdict.
+
 ## Fill model check against the tape (measured)
 
 Every trade in the ten markets, 2026-10-03 to 2026-11-08, from ironflow/hyperliquid-trades (`build_ticks.py`,
@@ -617,9 +665,6 @@ the minute after the order is placed.
   same variants run on minute data, which matters most for the trim rule and for round 8's tilt.
 - **The universe is the vault's own list** of ten markets, not a point-in-time rule. HYPE, the top earner,
   is in it because the vault chose it.
-- **A stop for a ladder that does not come back.** Round 1's stop was judged on a path where every ladder came
-  back, so it looked like pure cost. Round 10 shows that path was lucky. A time stop on spent ladders, judged on
-  27 copies, is the next thing to test; it was not run here.
 - **Negative funding only at 3x with three slots** (worst case 2.0x): by interpolation about +22% / 3.3%. Not run.
 - **Holdout:** none. Nothing here can pass rung 5.
 

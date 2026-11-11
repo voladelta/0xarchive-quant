@@ -651,3 +651,46 @@ and all closed in profit, so 30 should touch none of them, 14 two and 7 all five
   drawdown does not rise, in the full run and both halves.
 - An N is adopted only if both hold. Otherwise the report says what it costs and what it buys, and the rules
   freeze as they are. This is the last round on this data either way.
+
+### Round 13 result: no stop length is adopted; the rules freeze
+
+| Book, 27 copies, full run | Stop | Return: median / worst copy | Max drawdown: median / worst copy |
+|---|---|---|---|
+| `pick=5` (clean) | off | +23.95% / +23.11% | 6.62% / 6.69% |
+| | 30 days | +23.95% / +23.11% | 6.62% / 6.69% |
+| | 14 days | +19.73% / +18.81% | 6.62% / 6.69% |
+| | 7 days | +18.65% / +14.58% | 6.21% / 10.05% |
+| Negative only, 2.3x, three slots (clean) | off | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 30 days | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 14 days | +17.31% / +16.53% | 2.49% / 2.63% |
+| | 7 days | +16.89% / +16.18% | 2.49% / 2.63% |
+| Round 8's tilt (LINK stuck 14 weeks, came back) | off | +27.40% / +22.35% | 5.23% / 14.65% |
+| | 30 days | +27.40% / +12.77% | 5.23% / 14.65% |
+| | 14 days | +25.26% / +10.78% | 5.23% / 14.65% |
+| | 7 days | +20.46% / +12.76% | 7.73% / 9.24% |
+| `pick=5 high_gap=0.03` (DOGE never came back) | off | +11.40% / +10.71% | 6.11% / 6.29% |
+| | 30 days | +16.89% / +16.07% | 6.04% / 6.09% |
+| | 14 days | +22.05% / +21.18% | 6.04% / 6.09% |
+| | 7 days | +21.04% / +17.56% | 6.27% / 8.07% |
+| Other seven, negative only (BCH stuck 12 weeks, came back) | off | +5.85% / +5.06% | 7.98% / 15.83% |
+| | 30 days | -1.15% / -4.15% | 7.98% / 9.56% |
+| | 14 days | -1.17% / -4.52% | 7.45% / 9.38% |
+| | 7 days | +0.90% / -0.98% | 4.21% / 4.52% |
+
+By the rule declared above:
+- 30 days: affordable (it never fires on either clean book), does not cap the tail (the tilt's worst copy keeps
+  its 14.65% drawdown and its return falls from +22.35% to +12.77%; the other seven fall from +5.85% to -1.15%).
+- 14 days: not affordable (`pick=5` loses 4.2 points: the two June 2025 trips that closed in profit on days 26
+  and 29 are sold on day 14), and it does not cap the tail on the tilt or the other seven.
+- 7 days: neither.
+The halves were declared for the clean books and not run: no length cleared the tail test, so they could not
+change the verdict.
+
+What it does (measured): a time stop helps only when the coin never comes back. On the DOGE book 14 days takes
+the median from +11.40% to +22.05%. When the coin comes back late (LINK after 14 weeks, BCH after 12, ADA and
+DOGE in June 2025 after four) it sells the low and gives up the recovery. In this history late came up more
+often than never. What is left for a live book: 30 days is the shortest stop that never fired on `pick=5` or
+R8a in any of 27 copies, and on the one book with a ladder that never returned it took back about half the
+loss. That is a kill rule a trader can choose, not a tested improvement.
+
+40 changes in thirteen rounds; 2079 distinct results in the ledger. The study stops here.
