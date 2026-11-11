@@ -278,6 +278,30 @@ New trips only in the `pick` markets with the highest 7-day volatility of hourly
   for drawdown on the deep side. **A longer EMA is worse**; 6 to 14 hours is flat.
 - None of these is adopted. They are twelve more tries on the same data.
 
+## Fill model check against the tape (measured)
+
+Every trade in the ten markets, 2026-10-03 to 2026-11-08, from ironflow/hyperliquid-trades (`build_ticks.py`,
+`fill_check.py`). The engine fills a resting limit only when price trades through it, never on a touch, from
+the minute after the order is placed.
+
+| Check | Result |
+|---|---|
+| The vault's 922 real maker orders: tape traded through their price within 1 s / 10 s / 60 s / 5 min | 62% / 87% / 94% / 97% |
+| Never traded through within an hour (filled on a touch; the engine would not fill these) | 1.1% |
+| Volume traded through inside the minute, against the vault's order size | median 55x; under 1x for 10% |
+| 0xArchive's November minute lows and highs against the tape (SOL, 11,517 minutes) | lows 100% identical, highs 99.99% |
+| Vault trips that close inside 60 s / 120 s (faster than the engine's one-minute step) | 0.9% / 2.5%, 1.7% of its profit |
+| Replica, October, minute bars against hourly bars | +1.37% against +1.09%, max drawdown 1.94% against 1.91% |
+| `pick=5`, October, minute bars against hourly bars | +1.07% against +0.79%, max drawdown 1.94% against 1.84% |
+
+- The engine's rule grants 94% of the vault's real maker fills within a minute and misses about 1%. It is
+  slightly conservative, and replaying raw trades instead of minute bars would change little: the minute bars
+  are made from the same trades and the rule is already trade-through.
+- Size is not a constraint at the vault's scale in nine fills out of ten; the tenth would fill in part.
+- **Hourly bars understate return by about a quarter and leave drawdown unchanged** (one month, two runs).
+  The 17-month hourly returns in this report are more likely low than high on that account; they still charge
+  no funding. (inferred from one month)
+
 ## Not tested, and why
 
 - **The vault's real deep-trip handling** (its partial sells and the two "close everything" minutes). The trim
