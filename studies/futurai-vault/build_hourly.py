@@ -26,6 +26,7 @@ for coin in COINS:
             elif name == "vwap": e = "(k.open + k.close) / 2"
             elif name == "trade_count": e = "k.trades"
             elif name == "open_interest": e = "o.oi"   # the last reading of the clock hour, on its rows; strategies see it only once the hour's bar has closed
+            elif name == "mark_price": e = "CASE WHEN f.funding_rate IS NOT NULL THEN kp.close END"   # the engine charges funding at this price: the hour's close, on the settlement row
             elif name == "funding_rate": e = "f2.funding_rate"
             elif name == "funding_settled": e = "f.funding_rate"
             else: e = "NULL"
@@ -35,6 +36,7 @@ for coin in COINS:
           FROM (SELECT unnest(range({t0}, {t1}, 60000)) AS ts) g
           LEFT JOIN k ON k.ts + 3540000 = g.ts AND k.coin = '{coin}'
           LEFT JOIN fund f ON f.ts = g.ts AND f.coin = '{coin}'
+          LEFT JOIN k kp ON kp.ts + 3600000 = g.ts AND kp.coin = '{coin}'
           LEFT JOIN fund f2 ON f2.ts = (g.ts // 3600000 + 1) * 3600000 AND f2.coin = '{coin}'
           LEFT JOIN oi o ON o.ts = (g.ts // 3600000) * 3600000 AND o.coin = '{coin}'
           ORDER BY g.ts) TO '{out}/{mon}.parquet' (FORMAT parquet, COMPRESSION zstd, KV_METADATA {{"oxs.schema_version": '1m-v0', "oxs.dataset_version": 'ironflow-1h-v0', "oxs.market": 'hyperliquid:{coin}', "oxs.month": '{mon}', "oxs.start.fills": '2025-03-22', "oxs.start.orders": '2026-03-10', "oxs.start.book": '2023-04-15', "oxs.start.context": '2023-05-20', "oxs.start.liquidations": '2025-12-22', "oxs.start.liqlevels": '2026-07-27'}})""")

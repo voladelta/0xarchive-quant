@@ -188,3 +188,36 @@ C1 (five unranked slots) keeps most of the return and loses the second-half draw
 makes +9.79% against R6b's +24.40% at a larger drawdown. The ranking does the work. Plateau check: exits
 are a plateau; add distances are a peak with a cliff on the tight side; shallow entries and long EMAs are
 worse (REPORT.md). 106 trials. `pick=5` gauntlet: holds out of sample, deflated Sharpe 0.00 over 106 trials.
+
+## Round 7, declared before running (2026-11-11): charge funding, then trade on it
+
+**Fix.** The hourly runs so far charged no funding: the engine needs a price on the settlement row and the
+hourly dataset had none there. `build_hourly.py` now puts the hour's close on each settlement row as the mark
+price. Every hourly result is rerun with funding charged; the old hashes are superseded and the new ones are
+the baseline from here.
+
+**Idea.** Longs pay funding when it is positive and are paid when it is negative. As entry filters, fixed
+before running:
+- R7a: new trips only in markets whose last settled funding rate is below zero (`fr_max=0`).
+- R7b: only where the 24-hour mean funding rate is below zero (`fr_max=0 fr_hours=24`).
+- R7c: softer: skip a market only while its funding is above the venue's base rate of 0.00125% an hour
+  (`fr_max=0.0000126`), where longs are crowded and paying extra.
+Each is run alone and on top of `pick=5`. Kill condition as before, against the funding-charged replica (and
+against funding-charged `pick=5` for the stacked runs), both halves and the full run. Round 3's event study
+found no link between funding at entry and trip depth, so the prior is that these cut income without cutting risk.
+
+### Round 7 hourly result, and one follow-up declared before running
+
+Funding charged costs the replica 0.43% of equity over 17 months (+31.49% against +31.98%). Alone, none of the
+three funding filters passes. On top of `pick=5`, R7a (`fr_max=0`) passes on all three hourly windows with a
+third of the return (+7.61%, max drawdown 1.46%). A filter that only trades less can look good on a ratio, so
+one follow-up: the same rules at three times the first order (`base=0.0108`), to compare drawdown at about the
+return of plain `pick=5`. It counts as a pass only if, at a full-run return of at least `pick=5`'s, its
+drawdown is smaller in both halves and the full run.
+
+### Round 7 result
+
+At three times the first order `pick=5 fr_max=0` makes +24.57% with a 4.39% drawdown on the full run (Sharpe
+4.25) against `pick=5`'s +24.01% and 6.59%, but its second-half drawdown is 3.01% against 2.87% and it is behind
+on the minute window: not a pass by the rule above. A near-miss worth a forward test at the normal size.
+142 trials.

@@ -11,7 +11,7 @@ gauntlet rung is **holds out of sample**, deflated Sharpe not passed (0.00 over 
 eighteen failed; a round on 2023 to 2025 mark prices gave no verdict (the data misprices the strategy).
 Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 106 trials in the ledger now.
+count when its gauntlet ran). 142 trials in the ledger now.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -277,6 +277,45 @@ New trips only in the `pick` markets with the highest 7-day volatility of hourly
 - **Entry depth has a cliff on the shallow side** (0.5% under loses money in the first half) and trades return
   for drawdown on the deep side. **A longer EMA is worse**; 6 to 14 hours is flat.
 - None of these is adopted. They are twelve more tries on the same data.
+
+## Round 7: funding charged, and trading on it (measured, hourly bars unless said)
+
+**Funding is now charged on the hourly runs** (`build_hourly.py` puts a mark price on each settlement row).
+Hourly numbers in the sections above were run without it. The difference is small because the book is
+mostly flat: the replica pays $43 on $10,000 over 17 months, +31.49% against +31.98%; `pick=5` pays $32,
++24.01% against +24.40%. Drawdowns move by under 0.2 points. Hashes with funding: replica `f0e81c38e8aba68c`,
+`pick=5` `97a2ad7458718e91`. No conclusion above changes.
+
+**There is no carry to capture.** Holding only when funding is negative earns the book $12 to $38 on
+$10,000 over 17 months. Whatever the filter does, it is not the funding payment.
+
+| Run | 2025-06 to 2026-03: return / max DD | 2026-03 to 2026-11: return / max DD | Full: return / max DD / Sharpe | 39 days, minute: return / max DD |
+|---|---|---|---|---|
+| Replica | +20.42% / 10.21% | +9.26% / 4.76% | +31.49% / 10.21% / 1.40 | -0.17% / 2.79% |
+| Only markets with funding under zero | +6.80% / 4.26% | +4.59% / 3.50% | +11.70% / 4.26% / 1.49 | +0.81% / 1.36% |
+| Only where 24h mean funding is under zero | +4.57% / 1.42% | +2.60% / 3.03% | +7.27% / 3.03% / 1.88 | |
+| Skip markets paying over the base rate | +19.30% / 6.67% | +8.96% / 4.79% | +29.92% / 6.67% / 1.65 | -0.19% / 2.79% |
+| `pick=5` | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% / 1.82 | +1.81% / 1.94% |
+| `pick=5`, funding under zero | +4.50% / 1.46% | +2.99% / 1.00% | +7.61% / 1.46% / 4.25 | +0.88% / 1.31% |
+| `pick=5`, 24h mean funding under zero | +3.29% / 1.01% | +1.78% / 1.00% | +5.11% / 1.01% / 3.65 | |
+| `pick=5`, skip over the base rate | +14.55% / 5.05% | +7.03% / 3.04% | +22.55% / 5.05% / 2.18 | +1.79% / 1.94% |
+| `pick=5`, funding under zero, 3x first order | +14.10% / 4.39% | +9.22% / 3.01% | +24.57% / 4.39% / 4.25 | +2.66% / 3.93% |
+
+- **Alone, no funding filter passes.** Negative-only cuts the return by two thirds and return over drawdown
+  falls in both halves.
+- **On top of `pick=5`, negative-only is the strongest near-miss in the study.** At the same size it has a
+  higher return over drawdown in all three hourly windows, on a third of the return. Scaled to match
+  `pick=5`'s return (three times the first order) it makes +24.57% with a 4.39% drawdown against 6.59%, Sharpe
+  4.25 against 1.82. It fails the rule set beforehand on two counts: its second-half drawdown is 3.01% against
+  2.87%, and on the 39-day minute window it is behind `pick=5` at either size.
+- **Why it might be real (inferred):** negative funding means the perp trades under spot and shorts are
+  paying to stay short; a dip bought then has squeeze fuel behind it. Round 3 found no link between funding and
+  trip depth among all entries, so this is a different cut of the data, found after 142 trials.
+- **Do not run the 3x size.** Seven full ladders at that size are 4.7x equity. Round 2 showed what a bigger
+  first order does when ladders fill together; the filter makes that rarer, not impossible. The honest form of
+  this idea is the same size and a third of the income.
+- "Skip markets paying over the base rate" trims the first-half drawdown and does nothing in the second:
+  the same shape as the open-interest filter.
 
 ## Fill model check against the tape (measured)
 
