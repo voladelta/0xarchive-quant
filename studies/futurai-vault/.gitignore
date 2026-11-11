@@ -1,0 +1,7 @@
+data/
+data1h/
+ext/
+hl_fills.json
+trips.json
+trader.json
+__pycache__/
