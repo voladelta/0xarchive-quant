@@ -21,6 +21,8 @@
 #                           in the rest (the defaults 1 and 0 make fr_max a filter)
 #   boost_buys              with fr_boost: only the first boost_buys buys of a boosted trip are fr_boost x,
 #                           the deeper adds are the plain size (0 = the whole ladder is boosted)
+#   high_gap/high_hours     no new trips in a market whose last hourly close is within high_gap of its highest
+#                           hourly close of the last high_hours
 #   fr_skip                 no new trips in markets whose funding rate is at or above this
 #   cap                     each open trip reserves its full ladder at the first fill's price; no new trip
 #                           while the reserved notional would pass cap x equity (0 = off)
@@ -42,7 +44,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
              gate_market="", gate_hours=0, max_level=7, stop=0.0, vol_scale=0, vol_ref=0.006, budget=0.0,
              oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02,
              pick=0, pick_hours=168, exit_scale=1.0, step_scale=1.0, fr_max=None, fr_hours=1,
-             fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0, boost_buys=0):
+             fr_boost=1.0, fr_else=0.0, fr_skip=None, cap=0.0, front=1.0, boost_buys=0,
+             high_gap=0.0, high_hours=168):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
     steps = [float(v) * step_scale for v in (steps.split(",") if isinstance(steps, str) else steps)]
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
@@ -123,6 +126,10 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                     st["cheap"] = {m for m in universe if fr[m] is not None and fr[m] < fr_max}
                 if fr_skip is not None:
                     st["dear"] = {m for m in universe if fr[m] is not None and fr[m] >= fr_skip}
+            if high_gap > 0:
+                hi = h.close.max(int(high_hours))
+                st["top"] = {m for m in universe if hi[m] is not None and closes[m] is not None
+                             and closes[m] > hi[m] * (1 - high_gap)}
             if oi_max > 0:
                 now, then = h.open_interest.last(), h.open_interest.ago(int(oi_hours))
                 over = [oi_market] if oi_market != "ALL" else universe   # ALL: the markets' mean change
@@ -149,6 +156,8 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 tilt = fr_boost if m in st.get("cheap", ()) else fr_else
                 k *= tilt
             if fr_skip is not None and m in st.get("dear", ()):
+                k = 0.0
+            if high_gap > 0 and m in st.get("top", ()):
                 k = 0.0
             ok = room and k > 0 and (allowed is None or m in allowed)
             ladder = full_part if n and tilt == fr_boost else full

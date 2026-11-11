@@ -396,3 +396,154 @@ R10c by round 8's rule against R8d (+27.42% / 5.20% full, +17.19% / 5.20% and +8
 minute-window return and return over drawdown at least R8d's. The first half found the feature, so it is in
 sample for all of these; the second half, the minute window and the other coins are the test. With three
 crashes behind the design-half numbers this can fail exactly as round 3's open-interest filter did.
+
+### Round 10 result: fails, and the reason matters more than the result
+
+| Run | First half | Second half | Full: return / max DD | Minute |
+|---|---|---|---|---|
+| `pick=5` | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% | +1.81% / 1.94% |
+| R10a `pick=5 high_gap=0.03` | +8.87% / 6.04% | +6.82% / 2.86% | +11.38% / 6.11% | +1.76% / 1.94% |
+| R8d | +17.19% / 5.20% | +8.81% / 2.76% | +27.42% / 5.20% | +2.23% / 1.82% |
+| R10b R8d + `high_gap=0.03` | +10.53% / 6.34% | +8.32% / 2.76% | +14.29% / 6.34% | +2.18% / 1.82% |
+| R10c R10b at 1.33x | +12.65% / 8.55% | +10.06% / 5.29% | +16.68% / 9.92% | +2.56% / 2.42% |
+| U0 (other seven) | -10.37% / 16.68% | +7.98% / 8.56% | -6.86% / 26.66% | |
+| R10d U0 + `high_gap=0.03` | -10.74% / 16.58% | +7.60% / 8.59% | -7.48% / 26.84% | |
+
+All four fail. The filter does nothing on the other seven and halves the first-half return on the ten.
+
+**Why (measured).** One trip. In `pick=5`, DOGE opens 2026-01-15 00:59 at 0.14602, takes five buys, and its exit
+at 0.13919 fills on 2026-01-17. With the filter that entry is blocked (DOGE is 2.9% under its 7-day high) and
+the trip opens two hours later at 0.14472. Its fifth buy rests at 0.13459; the low on 2026-01-16 is 0.13511. So
+it holds four buys, its exit sits at 0.14027, the bounce stops short, and DOGE then falls to 0.068 by August
+without ever coming back. The trip takes all seven buys and is still open on 2026-11-01. The baseline escaped
+the same trip because its fifth buy filled by 0.5% of price.
+
+So the replica's record of no lost trips on the ten is partly luck, and every single-path comparison in rounds
+1 to 9 carries this: a variant that shifts one fill can gain or lose a third of the 17-month return on DOGE
+alone. The design-half observation was right about where the under-water hours were on that one path; it says
+nothing about the path a changed rule will walk.
+
+## Round 11, declared before running (2026-11-11): the same candidates as ensembles
+
+A rule should be judged on the paths it could have walked, not the one it did. Nine copies of each candidate
+that differ only in where the first order rests: `entry` from -0.0080 to -0.0096 in steps of 0.0002 (the
+vault's is read as -0.0088, give or take; a 0.02% shift is less than the difference between two real fills).
+Full hourly run, funding charged.
+
+Candidates: the replica; `pick=5`; `pick=5 fr_max=0` (round 7, normal size); R8d; R10a; R10b.
+
+For each: the median and the worst of return and of max drawdown across the nine, and how many copies end the
+run holding a trip of six or more buys. A candidate beats another only if its median return over median
+drawdown is higher and its worst drawdown is smaller; "more profit, less drawdown" also needs a higher median
+return. Nothing new is being fitted; this re-reads rounds 6 to 10 with the luck averaged out, and it can
+overturn them.
+
+### Round 11 result (nine copies each), and a wider re-read declared before running
+
+| Candidate | Return: median (low to high) | Max drawdown: median (low to high) | Median return / median drawdown |
+|---|---|---|---|
+| Replica | +31.49% (30.52 to 33.26) | 8.60% (7.74 to 10.23) | 3.66 |
+| `pick=5` | +23.95% (23.22 to 24.53) | 6.59% (6.11 to 6.69) | 3.63 |
+| `pick=5 fr_max=0` | +7.61% (7.28 to 7.92) | 1.46% (1.28 to 1.50) | 5.21 |
+| R8d (the tilt) | +27.42% (23.09 to 27.85) | 5.20% (5.00 to 14.64) | 5.27 |
+| R10a (`high_gap`) | +11.38% (10.80 to 12.08) | 6.11% (6.09 to 6.15) | 1.86 |
+| R10b (tilt + `high_gap`) | +14.29% (13.79 to 15.29) | 6.36% (6.34 to 6.45) | 2.25 |
+
+- The replica's 10.21% drawdown was one of its three worst copies; five of nine are under 8.7%. On medians
+  `pick=5` has the replica's return per unit of drawdown (3.63 against 3.66), not a better one. What it does
+  have is the smaller worst case, 6.69% against 10.23%. Round 6's pass is half luck in the baseline.
+- R8d: eight copies at +27.2% to +27.9% with 5.0% to 5.2%, and one (`entry=-0.0092`) at +23.09% with a 14.64%
+  drawdown. That copy opened a 3x LINK trip on 2026-01-29 that took seven buys and sat until 2026-05-08, 58% of
+  equity. The tail round 8 found on BCH is on the ten too, one path over. R8d does not beat `pick=5`.
+- `pick=5 fr_max=0` at normal size is tight in all nine and beats `pick=5` by the rule: a better ratio and a
+  worst drawdown of 1.50%, on a third of the return.
+- `high_gap` gets stuck in DOGE in all nine copies.
+
+Wider re-read, same rule, 27 copies each (`entry` as above x `ema_hours` 13, 14, 15), for the candidates above
+that are still alive and the settings rounds 7 and 8 already ran: replica; `pick=5`; `pick=5 fr_max=0`; R8d;
+skip only (`pick=5 fr_skip=0.0000126`); C3 (skip, 1.22x, cap); `fr_boost=2`; R8a (negative only, 2.3x, three
+slots); `fr_hours=8`; round 7's 3x (`pick=5 fr_max=0 base=0.0108`). No new rule is introduced. The
+recommendation will be whatever survives this, including "nothing beyond `pick=5`".
+
+### Round 11, 27 copies: result, and the halves declared before running
+
+| Candidate | Return: median (low to high) | Max drawdown: median (low to high) | Median / median | Copies with a drawdown over 1.5x the median |
+|---|---|---|---|---|
+| Replica | +31.47% (30.11 to 33.26) | 8.60% (7.74 to 10.23) | 3.66 | 0 |
+| `pick=5` | +23.95% (23.11 to 24.60) | 6.62% (6.01 to 6.69) | 3.62 | 0 |
+| Skip only (`pick=5 fr_skip=0.0000126`) | +22.55% (21.88 to 23.25) | 5.05% (5.00 to 5.82) | 4.47 | 0 |
+| C3: skip, first order 1.22x, cap | +27.64% (26.92 to 28.57) | 6.09% (6.04 to 7.14) | 4.54 | 0 |
+| `pick=5 fr_max=0` | +7.60% (7.21 to 7.92) | 1.46% (1.27 to 1.53) | 5.21 | 0 |
+| R8a: negative only, 2.3x, three slots | +17.31% (16.53 to 18.00) | 2.49% (2.35 to 2.63) | 6.95 | 0 |
+| Round 7's 3x: negative only, no cap | +24.53% (23.19 to 25.68) | 4.39% (3.81 to 4.60) | 5.59 | 0 |
+| `fr_boost=2` | +25.75% (22.48 to 26.45) | 5.08% (5.00 to 9.32) | 5.07 | 2 |
+| R8d: `fr_boost=3` | +27.40% (22.35 to 27.85) | 5.23% (5.00 to 14.65) | 5.24 | 6 |
+| `fr_hours=8` | +25.67% (23.47 to 26.89) | 5.18% (2.69 to 5.87) | 4.96 | 0 |
+
+R8d's stuck 3x LINK ladder is in 6 of 27 copies (the ones whose LINK trip opens at 11.60 on 2026-01-29 and not
+at 11.71 to 11.73 five hours earlier). Round 8's pass is withdrawn: it was the lucky side of a coin toss.
+The negative-only runs at 2.3x and 3x show no such copy here, but they hold the same 51% to 66% of equity in
+one ladder, and the BCH trip in round 8 was a negative-funding entry; that they dodged LINK in these 27 is the
+same kind of luck, not a property. What is tight in every copy is anything at or near the vault's size.
+
+The ensemble is over paths, not over time. So the halves, 27 copies each, started flat: `pick=5`, skip only,
+C3, `pick=5 fr_max=0`, R8a, round 7's 3x. Same rule per half.
+
+### Round 11, the halves (27 copies each), and the minute window declared before running
+
+| Candidate | First half: return / max DD (medians) | ratio | Second half: return / max DD (medians) | ratio | Worst DD, first / second |
+|---|---|---|---|---|---|
+| `pick=5` | +15.33% / 6.62% | 2.32 | +7.48% / 2.88% | 2.60 | 6.69% / 3.05% |
+| Skip only | +14.48% / 5.05% | 2.87 | +7.06% / 3.04% | 2.32 | 5.82% / 3.08% |
+| C3: skip, 1.22x, cap | +17.69% / 6.09% | 2.90 | +8.54% / 3.74% | 2.28 | 7.14% / 3.86% |
+| `pick=5 fr_max=0` | +4.45% / 1.46% | 3.05 | +2.99% / 1.00% | 2.99 | 1.53% / 1.00% |
+| R8a: negative only, 2.3x, three slots | +10.12% / 2.49% | 4.06 | +6.55% / 2.31% | 2.84 | 2.63% / 2.31% |
+| Round 7's 3x: negative only, no cap | +13.94% / 4.39% | 3.18 | +9.24% / 3.01% | 3.07 | 4.60% / 3.01% |
+
+Skipping crowded-long markets helps the first half and hurts the second, in every copy: not an improvement.
+Trading only negative funding beats `pick=5` by the rule (higher median ratio, smaller worst drawdown) in both
+halves and the full run at all three sizes. It is the one change in the study that holds across paths and
+across time. Its known weak spot is the 39-day minute window, where the single path was behind `pick=5`. So:
+27 copies each on the minute window for the replica, `pick=5`, `pick=5 fr_max=0` and R8a. (One R8a second-half
+copy did not return a result, so the table has 26; rerun with `ensemble.py`, all 27 give +6.56% / 2.31%.)
+
+### Round 11, minute window (27 copies), and one last check declared before running
+
+| Candidate, 2026-10-03 to 2026-11-11, minute bars | Return: median (low to high) | Max drawdown: median (low to high) | Median / median |
+|---|---|---|---|
+| Replica | -0.21% (-1.17 to +1.48) | 2.85% (2.02 to 4.03) | -0.07 |
+| `pick=5` | +1.72% (0.99 to 1.83) | 2.13% (1.87 to 2.99) | 0.81 |
+| `pick=5 fr_max=0` | +0.88% (0.81 to 0.93) | 1.31% (1.22 to 1.39) | 0.67 |
+| R8a | +1.86% (1.68 to 1.94) | 2.99% (2.79 to 3.01) | 0.62 |
+
+The minute window does not confirm negative-only: half of `pick=5`'s return for 60% of its drawdown at normal
+size, the same return for 40% more drawdown at 2.3x. Thirty-nine days and one sell-off, but it is the only
+minute data there is. The replica's own 39 days run from -1.17% to +1.48% across copies.
+
+Last check, breadth in place of size: the robust lever is negative funding and its limit is how much sits in
+one ladder, so widen the list and keep the vault's size. `fr_max=0` with `pick=7` and with no pick (round 7's
+R7a), 27 copies, full run and both halves. They count only if median return is above `pick=5 fr_max=0`'s and
+the median ratio is no lower, in all three windows.
+
+### Round 11, last check result, and where the study ends
+
+| Negative funding only, normal size, 27 copies | First half | Second half | Full: return / max DD (medians) | Median / median |
+|---|---|---|---|---|
+| Five most volatile (`pick=5 fr_max=0`) | +4.45% / 1.46% | +2.99% / 1.00% | +7.60% / 1.46% | 5.21 |
+| Seven most volatile | +5.76% / 2.92% | +3.89% / 1.54% | +9.90% / 2.92% | 3.39 |
+| All ten | +6.78% / 4.27% | +4.61% / 3.49% | +11.70% / 4.27% | 2.74 |
+
+Breadth fails: each wider list adds drawdown faster than income, in every window. The ranking matters as much
+under negative funding as without it.
+
+Where this leaves the study, on 27 copies:
+- `pick=5` has the replica's return per unit of drawdown and a smaller, tighter worst case.
+- Negative funding only, on top of it, is the one change that beats `pick=5` in both halves and the full run
+  in every copy, at the vault's size (+7.60% / 1.46%), at 2.3x with three slots (+17.31% / 2.49%) and at 3x
+  uncapped (+24.53% / 4.39%). The 39-day minute window does not confirm it.
+- Its income can only be raised by size in one ladder (22%, 51%, 66% of equity at those three sizes), and a
+  ladder that does not come back is the event this study has now seen three times: BCH on the other coins, LINK
+  one path over in R8d, DOGE in round 10. A coin that halves from the first fill leaves a spent ladder 23.8
+  first orders under: 8.6%, 19.7% and 25.7% of equity at those sizes (arithmetic, not a run).
+- R8d (round 8) is withdrawn. Skipping crowded-long markets is a first-half effect. `high_gap` fails.
+36 changes in eleven rounds; 927 distinct results in the ledger, about 700 of them ensemble copies.

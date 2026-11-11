@@ -4,18 +4,23 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Thirty-two changes to the rules were tested in nine rounds. Two passed the rule set beforehand. **Trade only
-the five most volatile of the ten markets** (`pick=5`) had a smaller drawdown and a higher return over
-drawdown than the replica in both halves of the hourly run, the full run and the 39-day minute window. Its
-gauntlet rung is **holds out of sample**, deflated Sharpe not passed (0.00 over 106 trials). On top of it, **a
-size tilt by funding state under a worst-case cap** (round 8) made more than `pick=5` at a smaller drawdown
-in every window, +27.42% / 5.20% against +24.01% / 6.59% on the full run; it also **holds out of sample**
-(deflated Sharpe 0.01 over 198 trials), its second-half margin is one point wide, and it failed on seven
-coins outside the vault's list. The other thirty failed; a round on 2023 to 2025 mark prices gave no verdict
-(the data misprices the strategy).
+Thirty-six changes to the rules were tested in eleven rounds. **The last round changed the standard of
+evidence.** A ladder that misses its exit by one fill can sit for months, so one backtest of this strategy is
+one draw; from round 11 every candidate is 27 copies that differ only in where the first order rests. On that
+standard:
+- **`pick=5`** (trade only the five most volatile of the ten) has the replica's return per unit of drawdown,
+  not a better one (3.62 against 3.66 on medians), with a smaller and tighter worst case: 6.7% against 10.2%.
+- **Negative funding only, on top of `pick=5`** (`fr_max=0`) is the one change that beats `pick=5` in both
+  halves and the full run in every copy: +7.6% / 1.5% at the vault's size, +17.3% / 2.5% at 2.3x with three
+  slots. The 39-day minute window does not confirm it, and its income can only be raised by putting more of the
+  book in one ladder.
+- **Round 8's funding tilt is withdrawn.** It passed on one path; 6 of its 27 copies have a 14.6% drawdown from
+  one stuck 3x ladder.
+- The other thirty-three failed; a round on 2023 to 2025 mark prices gave no verdict (the data misprices the
+  strategy). `pick=5`'s gauntlet rung is **holds out of sample**, deflated Sharpe not passed.
 Verdicts on the rest: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 220 distinct results in the ledger now.
+count when its gauntlet ran). 927 distinct results in the ledger now, about 700 of them ensemble copies.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -323,6 +328,8 @@ $10,000 over 17 months. Whatever the filter does, it is not the funding payment.
 
 ## Round 8: more income from the funding state, worst case held at the vault's (measured, hourly bars unless said)
 
+**Withdrawn in round 11.** Everything below is one path. Across 27 copies the pass has a 14.6% drawdown in six.
+
 Round 7's near-miss needed three times the first order, which lifts the worst case (every ladder full) from
 the vault's 1.55x equity to 4.7x. Six ways to take more income without that, fixed in STUDY.md before running.
 Baseline is `pick=5` with funding charged.
@@ -420,6 +427,129 @@ days for that reason and made the second-half drawdown 7.24%. It swaps a concent
 tail, and the second is worse. Same lesson as `front=2` above and the add-spacing cliff in round 6: the
 ladder's geometry is the fragile part.
 
+## Round 10: what a trip costs, from the mechanics (measured; the filter fails, the reason is the finding)
+
+**The mechanics.** Every trip closes at its average entry plus a fixed 0.35% to 0.65%. Income per trip is the
+same in any market state, so there are no better trips to select. What differs is what a trip costs the book
+while it is open. A spent ladder is 61.55 first orders riding the market; 25% under its first fill it is 8.4
+first orders under water, the income of about 580 average trips. The drawdown is a few spent ladders, held at
+once, through a fall longer than the ladder's 15%.
+
+**The observation** (`observe.py design`; the 3,513 replica trips opened before 2026-03-01).
+
+| Trips, by what was true at entry | Share of trips | Share of profit | Share of loss-hours under water | Share of loss in the book's worst 10% of hours |
+|---|---|---|---|---|
+| Within 3.2% of its 7-day high | 20% | 19.5% | 74% | 81% |
+| The other four fifths | 80% | 80.5% | 26% | 19% |
+| Funding negative | 17% | 16% | 1.3% | 0.4% |
+| Funding above the base rate | 11% | 12.5% | 41% | 50% |
+
+- Profit per trip is flat across every fifth of all 38 entry features. Cost is not.
+- The worst 2% of hours are carried by 63 trips. Round 3 asked "will this trip take five buys" and found
+  nothing; depth is common and cheap, and the cost is time under water in a few trips.
+- The costly fifth shows up under every gauge of "this coin has been running": near its high, up over 1.7% in
+  24 hours, 17 hours or more since its last trip, funding above base, open interest up.
+- **Inferred:** a fall longer than the ladder needs height to fall from and leveraged longs to force out. The
+  first dip off a high has both.
+
+**The test.** `high_gap=0.03`: no new trip within 3% of the 7-day high. Declared with its rule before running.
+
+| Run | First half | Second half | Full: return / max DD | Minute |
+|---|---|---|---|---|
+| `pick=5` | +15.46% / 6.59% | +7.45% / 2.87% | +24.01% / 6.59% | +1.81% / 1.94% |
+| `pick=5 high_gap=0.03` | +8.87% / 6.04% | +6.82% / 2.86% | +11.38% / 6.11% | +1.76% / 1.94% |
+| Other seven coins, `pick=4` | -10.37% / 16.68% | +7.98% / 8.56% | -6.86% / 26.66% | |
+| Other seven, with `high_gap=0.03` | -10.74% / 16.58% | +7.60% / 8.59% | -7.48% / 26.84% | |
+
+It fails everywhere, and on the ten it fails because of one trip:
+
+- In `pick=5`, DOGE opens 2026-01-15 00:59 at 0.14602, takes five buys, and exits at 0.13919 on 2026-01-17.
+- With the filter that entry is blocked and the trip opens two hours later at 0.14472. Its fifth buy rests at
+  0.13459; the low on 2026-01-16 is 0.13511. Holding four buys, its exit is at 0.14027, and the bounce stops short.
+- DOGE then falls to 0.068 by August. The trip takes all seven buys and is still open on 2026-11-01.
+
+**The baseline escaped the same trip because one buy filled by 0.5% of price.** So the replica's record of no
+lost trips on the ten is partly luck, the observation above describes one path, and every single-path
+comparison in rounds 1 to 9 carries this risk.
+
+## Round 11: every candidate as 27 copies (measured, hourly bars unless said)
+
+Each candidate is run 27 times: `entry` from -0.0080 to -0.0096 in steps of 0.0002, times `ema_hours` 13, 14
+and 15 (`ensemble.py`). The vault's entry is only roughly read, so these are equally good replicas; a 0.02%
+shift in where an order rests is less than the difference between two real fills. A candidate beats another
+only if its median return over median drawdown is higher and its worst copy's drawdown is smaller.
+
+| Candidate, 2025-06-05 to 2026-11-01 | Return: median (low to high) | Max drawdown: median (low to high) | Median / median | Copies with a drawdown over 1.5x the median |
+|---|---|---|---|---|
+| Replica | +31.47% (30.11 to 33.26) | 8.60% (7.74 to 10.23) | 3.66 | 0 |
+| `pick=5` | +23.95% (23.11 to 24.60) | 6.62% (6.01 to 6.69) | 3.62 | 0 |
+| Skip crowded longs (`pick=5 fr_skip=0.0000126`) | +22.55% (21.88 to 23.25) | 5.05% (5.00 to 5.82) | 4.47 | 0 |
+| The same, first order 1.22x, cap 1.55x | +27.64% (26.92 to 28.57) | 6.09% (6.04 to 7.14) | 4.54 | 0 |
+| **Negative funding only (`pick=5 fr_max=0`)** | +7.60% (7.21 to 7.92) | 1.46% (1.27 to 1.53) | 5.21 | 0 |
+| **The same, 2.3x, three slots** | +17.31% (16.53 to 18.00) | 2.49% (2.35 to 2.63) | 6.95 | 0 |
+| The same, 3x, no cap | +24.53% (23.19 to 25.68) | 4.39% (3.81 to 4.60) | 5.59 | 0 |
+| Tilt, `fr_boost=2` | +25.75% (22.48 to 26.45) | 5.08% (5.00 to 9.32) | 5.07 | 2 |
+| Round 8's pass, `fr_boost=3` | +27.40% (22.35 to 27.85) | 5.23% (5.00 to 14.65) | 5.24 | 6 |
+| Round 10's `high_gap` (nine copies) | +11.38% (10.80 to 12.08) | 6.11% (6.09 to 6.15) | 1.86 | 0 |
+
+The halves, each started flat, 27 copies (medians):
+
+| Candidate | 2025-06 to 2026-03: return / max DD | ratio | 2026-03 to 2026-11: return / max DD | ratio |
+|---|---|---|---|---|
+| `pick=5` | +15.33% / 6.62% | 2.32 | +7.48% / 2.88% | 2.60 |
+| Skip crowded longs | +14.48% / 5.05% | 2.87 | +7.06% / 3.04% | 2.32 |
+| Skip, 1.22x, cap | +17.69% / 6.09% | 2.90 | +8.54% / 3.74% | 2.28 |
+| Negative funding only | +4.45% / 1.46% | 3.05 | +2.99% / 1.00% | 2.99 |
+| Negative only, 2.3x, three slots | +10.12% / 2.49% | 4.06 | +6.56% / 2.31% | 2.84 |
+| Negative only, 3x, no cap | +13.94% / 4.39% | 3.18 | +9.24% / 3.01% | 3.07 |
+
+The 39-day minute window, 27 copies:
+
+| Candidate | Return: median (low to high) | Max drawdown: median (low to high) | Median / median |
+|---|---|---|---|
+| Replica | -0.21% (-1.17 to +1.48) | 2.85% (2.02 to 4.03) | -0.07 |
+| `pick=5` | +1.72% (0.99 to 1.83) | 2.13% (1.87 to 2.99) | 0.81 |
+| Negative funding only | +0.88% (0.81 to 0.93) | 1.31% (1.22 to 1.39) | 0.67 |
+| Negative only, 2.3x, three slots | +1.86% (1.68 to 1.94) | 2.99% (2.79 to 3.01) | 0.62 |
+
+- **`pick=5` is tighter, not better per unit of drawdown.** The replica's 10.21% drawdown in round 6 was one of
+  its three worst copies; on medians the two have the same ratio. What `pick=5` buys is the worst case: 6.69%
+  against 10.23%.
+- **Round 8's tilt is withdrawn.** Six of 27 copies open a 3x LINK trip at 11.60 on 2026-01-29, five hours after
+  the others open theirs at 11.71 to 11.73. It takes seven buys and sits until 2026-05-08 at 58% of equity. That
+  is the BCH trip from round 8's other-coins check, on the ten, one path over.
+- **Skipping crowded longs is a first-half effect.** Better in every copy before March 2026, worse in every copy
+  after.
+- **Negative funding only is the one change that holds across paths and across time**: a higher ratio and a
+  smaller worst drawdown than `pick=5` in the full run and both halves, at all three sizes, with no bad copy.
+- **The minute window does not confirm it**: half of `pick=5`'s return for 60% of its drawdown at the vault's
+  size, the same return for 40% more drawdown at 2.3x. Thirty-nine days and one sell-off, but it is the only
+  minute data there is.
+- **Breadth does not replace size.** Negative only over the seven most volatile makes +9.90% / 2.92%, over all
+  ten +11.70% / 4.27%: the ratio falls from 5.21 to 3.39 and 2.74.
+
+**What size costs (inferred arithmetic, not a run).** A spent ladder in a coin that has halved from the first
+fill is 23.8 first orders under water.
+
+| Book | One full ladder, share of equity | Measured peak in one coin | That ladder in a coin that halves |
+|---|---|---|---|
+| Replica, `pick=5`, negative only at the vault's size | 22% | 0.20x | 8.6% of equity |
+| Negative only, 2.3x, three slots | 51% | 0.46x | 19.7% |
+| Negative only 3x, or round 8's tilt | 66% | 0.59x to 0.60x | 25.7% |
+
+A ladder that did not come back was seen three times in this study: BCH (12 weeks), LINK (14 weeks), DOGE (ten
+months and open). None of the negative-only copies on the ten hit one. That is 27 draws from one history, not a
+property of the rule: the BCH trip was a negative-funding entry.
+
+**Settings.**
+
+| Book | Settings | 27 copies, full run: return / max DD (median) |
+|---|---|---|
+| The vault's rules | defaults | +31.5% / 8.6% |
+| Tighter worst case | `pick=5` | +24.0% / 6.6% |
+| Best ratio, vault's size | `pick=5 fr_max=0` | +7.6% / 1.5% |
+| Best ratio, sized to the vault's worst case | `pick=5 fr_max=0 base=0.0083 max_open=3` | +17.3% / 2.5% |
+
 ## Fill model check against the tape (measured)
 
 Every trade in the ten markets, 2026-10-03 to 2026-11-08, from ironflow/hyperliquid-trades (`build_ticks.py`,
@@ -456,6 +586,10 @@ the minute after the order is placed.
   same variants run on minute data, which matters most for the trim rule and for round 8's tilt.
 - **The universe is the vault's own list** of ten markets, not a point-in-time rule. HYPE, the top earner,
   is in it because the vault chose it.
+- **A stop for a ladder that does not come back.** Round 1's stop was judged on a path where every ladder came
+  back, so it looked like pure cost. Round 10 shows that path was lucky. A time stop on spent ladders, judged on
+  27 copies, is the next thing to test; it was not run here.
+- **Negative funding only at 3x with three slots** (worst case 2.0x): by interpolation about +22% / 3.3%. Not run.
 - **Holdout:** none. Nothing here can pass rung 5.
 
 ## Rerun
@@ -476,6 +610,9 @@ python3 trips_replica.py && python3 event_study.py design          # then: event
   -p fr_max=0 -p fr_boost=3 -p fr_else=1 -p fr_skip=0.0000126 -p cap=1.55                         # cc00955cbe8f1b26
 python3 trader.py replicate trader_oct.json futurai.py --clock 1m --start 2026-10-03 --end 2026-11-11
 python3 match.py
+python3 observe.py design                                           # round 10: profit share against cost share
+python3 ensemble.py hourly 2025-06-05 2026-11-01 pick=5 fr_max=0    # round 11: 27 copies of one candidate
+python3 ensemble.py minute 2026-10-03 2026-11-11 pick=5
 ```
 
 The vault trades on, so `hl_book.py` run later returns more fills than the 11,374 used here; the hashes
