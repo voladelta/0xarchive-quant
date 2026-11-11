@@ -14,6 +14,10 @@
 #   stop                    close a trip at its average entry less this fraction
 #   vol_scale               scale steps and exits by the market's 24h volatility over vol_ref
 #   budget                  no new trip while the cost held across all trips is above this share of equity
+#   trim_level/trim         from trim_level buys on, the last add is also offered `trim` above its own fill;
+#                           when that sells, the trip steps back one level and the add rests again
+#   oi_max/oi_hours/oi_size while oi_market's open interest is up more than oi_max over oi_hours, new trips
+#                           open at oi_size x the first order (0 = no new trips)
 import oxarchive_backtest as oxb
 
 STEPS = "-0.0225,-0.0354,-0.0504,-0.0700,-0.0985,-0.1495"
@@ -23,7 +27,8 @@ EXITS = "0.0056,0.00567,0.0058,0.00603,0.00652,0.0035,0.0035"
 
 def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14, entry=-0.0088,
              steps=STEPS, mult=MULT, exits=EXITS, base=0.0036, max_open=7,
-             gate_market="", gate_hours=0, max_level=7, stop=0.0, vol_scale=0, vol_ref=0.006, budget=0.0):
+             gate_market="", gate_hours=0, max_level=7, stop=0.0, vol_scale=0, vol_ref=0.006, budget=0.0,
+             oi_market="BTC", oi_hours=24, oi_max=0.0, oi_size=0.0, trim_level=0, trim=0.02):
     universe = [m.strip() for m in markets.split(",")] if isinstance(markets, str) else list(markets)
     steps = [float(v) for v in steps.split(",")] if isinstance(steps, str) else list(steps)
     mult = [float(v) for v in mult.split(",")] if isinstance(mult, str) else list(mult)
@@ -40,7 +45,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         return k * e * (1 - a) / (1 - k * a)
 
     def rest(ctx, m, t):
-        for key in ("next", "out", "stop"):
+        for key in ("next", "out", "stop", "trim"):
             cancel(ctx, t.get(key))
             t[key] = None
         held = t["qty"]
@@ -49,7 +54,14 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
         avg = t["cost"] / t["qty"]
         i = t["level"]                       # buys so far, 1 = the entry
         s = t["scale"]
-        t["out"] = ctx.limit(m, -held, avg * (1 + s * exits[min(i, len(exits)) - 1]), reduce_only=True)
+        out_px = avg * (1 + s * exits[min(i, len(exits)) - 1])
+        cut = 0.0
+        if trim_level and i >= trim_level and i > 1:
+            q, px = t["adds"][-1]
+            if px * (1 + trim) < out_px and q < held:
+                cut = q
+                t["trim"] = ctx.limit(m, -cut, px * (1 + trim), reduce_only=True)
+        t["out"] = ctx.limit(m, -(held - cut), out_px, reduce_only=True)
         if stop > 0 and i >= max_level:      # the stop only arms once the ladder is spent
             t["stop"] = ctx.stop(m, -held, avg * (1 - stop), reduce_only=True)
         if i <= len(steps) and i < max_level:
@@ -70,6 +82,11 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                     ema[m] = c if m not in ema else ema[m] * (1 - a) + c * a
                 if vols is not None and vols[m] is not None:
                     st.setdefault("vol", {})[m] = vols[m]
+            if oi_max > 0:
+                now, then = h.open_interest.last(), h.open_interest.ago(int(oi_hours))
+                over = [oi_market] if oi_market != "ALL" else universe   # ALL: the markets' mean change
+                ch = [now[m] / then[m] - 1 for m in over if now[m] and then[m]]
+                st["hot"] = bool(ch and sum(ch) / len(ch) > oi_max)
             if gate_hours:
                 g = closes[gate_market]
                 if g is not None:
@@ -77,7 +94,9 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                     st["gate"] = g >= st["gema"]
         gate = st.get("gate", True) if gate_hours else True
         spent = sum(t["cost"] for t in trips.values())
-        room = gate and len(trips) < max_open and (budget <= 0 or spent <= budget * ctx.equity)
+        hot = oi_max > 0 and st.get("hot", False)
+        size = base * (oi_size if hot else 1.0)
+        room = gate and size > 0 and len(trips) < max_open and (budget <= 0 or spent <= budget * ctx.equity)
         for m in universe:
             if m in trips or m not in ema or ctx.price(m) is None:
                 continue
@@ -88,7 +107,7 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
                 cancel(ctx, ent.get(m))
                 s = max(0.5, min(3.0, st.get("vol", {}).get(m, vol_ref) / vol_ref)) if vol_scale else 1.0
                 px = entry_px(ema[m], 1 + s * entry)
-                ent[m] = ctx.limit(m, base * ctx.equity / px, px)
+                ent[m] = ctx.limit(m, size * ctx.equity / px, px)
                 st.setdefault("scale", {})[m] = s
 
     def on_fill(ctx, f):
@@ -106,15 +125,23 @@ def strategy(markets="ADA,BNB,BTC,DOGE,ETH,HYPE,LINK,SOL,TRX,XRP", ema_hours=14,
             if f.order_id != t.get("last_add"):
                 t["level"] += 1
                 t["last_add"] = f.order_id
+                t.setdefault("adds", []).append([0.0, f.price])
+            t["adds"][-1][0] += f.size
             t["qty"] += f.size
             t["cost"] += f.size * f.price
             rest(ctx, m, t)
         elif t is not None:                  # a sell
+            trimmed = f.order_id == t.get("trim")
             t["cost"] *= (t["qty"] + f.size) / t["qty"]
             t["qty"] += f.size
             if abs(ctx.positions[m]) <= 1e-12:
-                for key in ("next", "out", "stop"):
+                for key in ("next", "out", "stop", "trim"):
                     cancel(ctx, t.get(key))
                 del trips[m]
+            elif trimmed:                    # the last add is sold: back one level, rest it again
+                t["adds"].pop()
+                t["level"] -= 1
+                t["last_add"] = None
+                rest(ctx, m, t)
 
     return oxb.Strategy(universe=universe, clock="1m", step=step, on_fill=on_fill)

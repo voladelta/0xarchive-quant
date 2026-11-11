@@ -9,6 +9,7 @@ furls = [f"https://huggingface.co/datasets/ironflow/hyperliquid-funding/resolve/
 c.execute(f"""CREATE TABLE fund AS SELECT coin, epoch_ms(date_trunc('hour', timestamp)) ts, any_value(funding_rate) funding_rate, any_value(premium) premium
               FROM read_parquet({furls}) WHERE dex='' AND coin IN ({','.join(repr(x) for x in COINS)}) GROUP BY 1, 2""")
 c.execute("CREATE TABLE k AS SELECT * FROM 'ext/candles_1h.parquet'")
+c.execute("CREATE TABLE oi AS SELECT * FROM 'ext/oi_1h.parquet'")   # ironflow/hyperliquid-open-interest, hourly snapshots
 ref = "data/hyperliquid/BTC/2026-11.parquet"
 desc = c.execute(f"DESCRIBE SELECT * FROM '{ref}'").fetchall()
 for coin in COINS:
@@ -23,6 +24,7 @@ for coin in COINS:
             elif name == "quote_volume": e = "k.volume * (k.open + k.close) / 2"
             elif name == "vwap": e = "(k.open + k.close) / 2"
             elif name == "trade_count": e = "k.trades"
+            elif name == "open_interest": e = "o.oi"   # the snapshot at the hour's start, on every row of the hour
             elif name == "funding_rate": e = "f2.funding_rate"
             elif name == "funding_settled": e = "f.funding_rate"
             else: e = "NULL"
@@ -33,5 +35,6 @@ for coin in COINS:
           LEFT JOIN k ON k.ts + 3540000 = g.ts AND k.coin = '{coin}'
           LEFT JOIN fund f ON f.ts = g.ts AND f.coin = '{coin}'
           LEFT JOIN fund f2 ON f2.ts = (g.ts // 3600000 + 1) * 3600000 AND f2.coin = '{coin}'
+          LEFT JOIN oi o ON o.ts = (g.ts // 3600000) * 3600000 AND o.coin = '{coin}'
           ORDER BY g.ts) TO '{out}/{mon}.parquet' (FORMAT parquet, COMPRESSION zstd, KV_METADATA {{"oxs.schema_version": '1m-v0', "oxs.dataset_version": 'ironflow-1h-v0', "oxs.market": 'hyperliquid:{coin}', "oxs.month": '{mon}', "oxs.start.fills": '2025-03-22', "oxs.start.orders": '2026-03-10', "oxs.start.book": '2023-04-15', "oxs.start.context": '2023-05-20', "oxs.start.liquidations": '2025-12-22', "oxs.start.liqlevels": '2026-07-27'}})""")
     print(coin, flush=True)

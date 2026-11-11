@@ -4,9 +4,10 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
-Seven changes to the rules were tested and none beat the vault's own settings. Verdicts: the vault's book
-**holds out of sample** (deflated Sharpe not passed, 0.89 over 3 trials, 39 days); the replica
-**holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials). 30 trials in the ledger.
+Thirteen changes to the rules were tested in four rounds and none beat the vault's own settings by the rule
+set beforehand. Verdicts: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
+trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
+count when its gauntlet ran). 54 trials in the ledger now.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -112,7 +113,7 @@ Replica gauntlet on hourly bars (`replica-card.md`): **holds out of sample**, de
 Nulls not run (a strategy written as one step has no signal to flip). Do not read it as an edge: it is a
 description of what the vault does, on coarse data, with no funding charged.
 
-## Can it be improved? Seven tries, none passed
+## Can it be improved? Rounds 1 and 2: seven tries, none passed
 
 Kill condition (STUDY.md): smaller max drawdown and higher return over drawdown than the replica on the
 hourly run, and not worse on the minute window. Round 1 was four changes fixed in advance; round 2 was three
@@ -143,18 +144,65 @@ What the failures say (inferred):
   this sample. The same ladder at seven buys has the 5-buy problem one step further down: a fall of more
   than about 15% from first entry in seven coins at once leaves it 1.5x long with nothing left to add.
 
+## Rounds 3 and 4: market state at entry, and trimming deep trips
+
+### Does anything known at entry warn of a deep trip? (event study, measured)
+
+5,651 closed replica trips on the hourly run; "deep" is five or more buys. Features are from the last hour
+closed before entry. Filters and thresholds were picked on 2025-06-05 to 2026-03-01 only (3,513 trips, 4.6%
+deep) and tested on 2026-03-01 to 2026-11-01 (2,138 trips, 3.0% deep). Rank AUC of 0.5 is no information.
+
+| Idea | Design-window AUC for "deep" | Reading |
+|---|---|---|
+| Regime: BTC or the coin against a 7-day EMA, 24h/72h/7d returns, breadth | 0.47 to 0.53 | nothing |
+| Volatility: 24h, and 24h over 7d (BTC and the coin) | 0.46 to 0.50 | nothing |
+| Bollinger stretch, 20h and 80h z-score; depth under the 14h EMA | 0.51 to 0.54 | nothing |
+| Funding rate, 24h mean funding, premium (coin, BTC, market) | 0.50 to 0.54 | nothing on the design window |
+| Long liquidations over 1h, 4h, 24h, against open interest (coin and market) | 0.46 to 0.49 | nothing |
+| Open interest change, 24h: BTC / the ten markets' mean / the coin | 0.63 / 0.60 / 0.55 | deep share 2.1% in the lowest fifth of BTC OI change, 7.8% in the highest |
+
+Mean PnL per trip is positive in every fifth of every feature: deep trips still close in profit, so a filter
+can only buy a smaller drawdown with income. On the test window the ten-market OI change still sorted
+(AUC 0.59) and BTC's did not.
+
+The entry is already a dip buy under a moving average, which is why Bollinger stretch and "how far has it
+fallen" add nothing: every entry is already stretched. A liquidation flush before entry does not make the dip
+safer or worse in this sample.
+
+### Filters and the trim rule against the replica (measured, hourly bars)
+
+| Change | Design 2025-06 to 2026-03: return / max DD | Test 2026-03 to 2026-11: return / max DD | 39 days, minute | Passed |
+|---|---|---|---|---|
+| Replica | +20.62% / 10.38% | +9.49% / 4.78% | -0.17% | |
+| No new trips while BTC OI is up over 5% in 24h | +18.49% / 4.18% | +8.63% / 4.99% | -0.22% | no: test drawdown not smaller |
+| Same, over 1.6% | +15.35% / 4.18% | +7.04% / 4.03% | -0.35% | no: return fell more than drawdown |
+| Half-size first order while BTC OI is up over 1.6% | +15.54% / 6.94% | +7.53% / 4.17% | -0.41% | no |
+| No new trips while the ten markets' mean OI is up over 3.5% | +18.66% / 6.81% | +8.85% / 4.98% | -0.37% | no |
+| Trim from the 6th buy: sell the last add 2% over its fill, re-rest it | +13.36% / 9.56% | +7.90% / 3.71% | +0.04% | no: fails the first half and the full run |
+| Trim from the 5th buy | +14.11% / 7.76% | +7.62% / 3.75% | -0.22% | no |
+
+- **The BTC OI filter is the nearest miss.** On the design window it removed or halved all three large
+  drawdowns (June 2025 6.8% to under 2.5%, 10 October 2025 10.4% to 4.2%, February 2026 6.4% to 3.2%) for a
+  tenth of the return. On the test window it cut neither of the two drawdowns (June 2026) and still cost a
+  tenth. That is insurance that paid three times and then not at all, on five events. Not proven, and by the
+  rule not an improvement. (inferred)
+- **The trim rule** has no design window (its numbers come from the vault's fills), so all windows count. It
+  lowers drawdown everywhere (8% to 25%) and costs about 30% of the return on the full run; return over
+  drawdown is better only on the second half. Hourly bars are unkind to it: a trim can't sell in the hour its
+  add filled. Worth a rerun on minute data, not a claim.
+
 ## Not tested, and why
 
-- **The vault's deep-trip trimming** (sell a piece on a bounce, re-buy lower). It is where the vault beat the
-  replica in November, and the most likely real improvement to a plain ladder. No fixed rule in the fills to
-  copy; writing one is a new idea and a new study.
+- **A sweep of the vault's own numbers** (exit distance, step sizes, entry depth). It would show whether its
+  settings sit on a plateau or a peak, at the price of more trials on a sample that has already had thirteen.
 - **Dropping the weak markets** (BTC, AVAX, XRP, XLM). The per-market table is eight months in sample; testing
   it on the same months would be fitting.
 - **Anything on minute data before 2026-10-03.** The 0xArchive key is on the free plan (30 days) and `0xbt
   data pull` works in whole months, so October was built from ironflow's free trades and the long run from
   ironflow's hourly candles. On hourly bars a take-profit can't fill in the hour its buy filled, the order of
   a buy and a sell inside one hour is unknown, and the run charged no funding (longs usually pay; about 11% a
-  year on notional held at the base rate). A paid key would let the same seven variants run on minute data.
+  year on notional held at the base rate). A paid key would let the same variants run on minute data,
+  which matters most for the trim rule.
 - **The universe is the vault's own list** of ten markets, not a point-in-time rule. HYPE, the top earner,
   is in it because the vault chose it.
 - **Holdout:** none. Nothing here can pass rung 5.
@@ -166,7 +214,8 @@ python3 hl_book.py                                   # fills, trips.json, trader
 export OXARCHIVE_API_KEY=...                         # November minute data
 0xbt data pull --markets ADA,LINK,HYPE,SOL,DOGE,XRP,ETH,TRX,BNB,BTC --from 2026-11 --to 2026-11
 python3 build_minutes.py 2026-10-03 2026-10-31 && python3 build_october.py   # October from ironflow trades
-python3 build_hourly.py                              # needs ext/candles_1h.parquet (query in STUDY.md)
+python3 build_hourly.py                              # needs ext/candles_1h.parquet and ext/oi_1h.parquet (STUDY.md)
+python3 trips_replica.py && python3 event_study.py design          # then: event_study.py test
 
 0xbt backtest mirror.py -p path=trader_oct.json -p clock=1m --start 2026-10-03 --end 2026-11-11   # a83c1281e778a553
 0xbt backtest futurai.py --start 2026-10-03 --end 2026-11-11                                      # 94d028e7e6d6b656
