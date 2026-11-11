@@ -24,7 +24,7 @@ for coin in COINS:
             elif name == "quote_volume": e = "k.volume * (k.open + k.close) / 2"
             elif name == "vwap": e = "(k.open + k.close) / 2"
             elif name == "trade_count": e = "k.trades"
-            elif name == "open_interest": e = "o.oi"   # the snapshot at the hour's start, on every row of the hour
+            elif name == "open_interest": e = "o.oi"   # the last reading of the clock hour, on its rows; strategies see it only once the hour's bar has closed
             elif name == "funding_rate": e = "f2.funding_rate"
             elif name == "funding_settled": e = "f.funding_rate"
             else: e = "NULL"

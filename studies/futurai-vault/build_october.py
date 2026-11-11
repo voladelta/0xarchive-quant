@@ -22,7 +22,7 @@ for coin in "ADA LINK HYPE SOL DOGE XRP ETH TRX BNB BTC".split():
         elif k == "funding_rate": e = "coalesce(f2.funding_rate, last_value(f.funding_rate IGNORE NULLS) OVER (ORDER BY g.ts))"  # the estimate is the rate the hour settles at
         elif k == "premium": e = "last_value(f.premium IGNORE NULLS) OVER (ORDER BY g.ts)"
         elif k == "funding_settled": e = "f.funding_rate"
-        elif k == "open_interest": e = "o.oi"   # the snapshot at the hour's start, on every row of the hour
+        elif k == "open_interest": e = "o.oi"   # the last reading of the clock hour, on its rows; strategies see it only once the hour's bar has closed
         else: e = "NULL"
         sel.append(f"CAST({e} AS {types[k]}) AS {k}")
     out = f"data/hyperliquid/{coin}/2026-10.parquet"

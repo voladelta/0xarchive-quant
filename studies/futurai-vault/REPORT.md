@@ -5,9 +5,9 @@ Vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003` on Hyperliquid. Studied 2026-
 **It is a seven-step martingale ladder, sized small.** The ladder and exits are read exactly from 11,374
 fills; the entry trigger is found only roughly; the handling of deep trips is not mechanical and not copied.
 Thirteen changes to the rules were tested in four rounds and none beat the vault's own settings by the rule
-set beforehand. Verdicts: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
+set beforehand; a fifth round on 2023 to 2025 mark prices gave no verdict (the data misprices the strategy). Verdicts: the vault's book **holds out of sample** (deflated Sharpe not passed, 0.89 over 3
 trials, 39 days); the replica **holds out of sample** (deflated Sharpe not passed, 0.00 over 30 trials, the
-count when its gauntlet ran). 54 trials in the ledger now.
+count when its gauntlet ran). 60 trials in the ledger now.
 
 Labels: **measured** = from fills, an engine result hash or the venue's API; **inferred** = reasoning from
 measured numbers; **untested** = not run.
@@ -190,6 +190,31 @@ safer or worse in this sample.
   lowers drawdown everywhere (8% to 25%) and costs about 30% of the return on the full run; return over
   drawdown is better only on the second half. Hourly bars are unkind to it: a trim can't sell in the hour its
   add filled. Worth a rerun on minute data, not a claim.
+
+## Round 5: two more years from the open-interest set's mark price (no verdict)
+
+ironflow/hyperliquid-open-interest carries an hourly mark price from May 2023, two years before the candles.
+`build_mark.py` turns it into close-to-close hourly bars with OI and funding. The filters were run unchanged.
+
+| Run (mark bars) | 2023-07 to 2025-06, never used before: return / max DD | 2025-06 to 2026-11: return / max DD |
+|---|---|---|
+| Replica | +14.30% / 37.40% | -16.20% / 44.91% |
+| No new trips while BTC OI is up over 5% in 24h | +24.25% / 21.25% | -7.70% / 37.05% |
+| No new trips while the ten markets' mean OI is up over 3.5% | +2.29% / 36.68% | -7.74% / 36.57% |
+
+- **The dataset fails its calibration.** On 2025-06 to 2026-11 the same replica makes +31.98% with a 10.38%
+  drawdown on candle bars and -16.20% with 44.91% on mark bars. Mark bars have half the real hourly range,
+  so the +0.56% exits rarely fill, trips stay open and ladders run deep. None of the returns in this table is
+  a number to quote. (measured)
+- **What it is good for:** a world where exits fill badly and ladders go deep far more often. In that world
+  the BTC OI filter beat the replica on both return and drawdown in both periods, including the two years it
+  had never seen. The ten-market version did not. (measured on a mispriced dataset)
+- **Reading:** together with round 3, the BTC OI filter helps when ladders go deep and costs about a tenth of
+  the income when they don't. It is still not a tested improvement: its only clean test (2026-03 to 2026-11,
+  candle bars) failed. It is the one idea here worth a paid month of minute data. (inferred)
+- **The same run is a warning about the strategy itself:** it earns its return inside the hour. Anything that
+  stops the small exits from filling (thin books, a slower bot, wider spreads) moves it from a 10% drawdown
+  toward a 40% one. (inferred)
 
 ## Not tested, and why
 

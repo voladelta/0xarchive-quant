@@ -133,3 +133,24 @@ fitting it.
 ironflow/hyperliquid-open-interest, -funding and -liquidations (`data/events`), months 2025-05 to 2026-10,
 the vault's 18 markets: one row per coin and hour (OI snapshot; funding rate and premium; long and short
 liquidation notional summed).
+
+## Round 5, declared before running (2026-11-11): the OI filter on two years it has not seen
+
+ironflow/hyperliquid-open-interest also has an hourly mark price from 2023-05-20, two years before the
+hourly candles start. `build_mark.py` makes a third dataset from it: one bar per hour whose close is the
+hour's last mark and whose open is the previous hour's, so high and low are just the larger and smaller of
+the two. No intrahour range: fills are understated, more than on the candle bars. To size that bias the same
+build also covers 2025-06 to 2026-10, where the candle-bar result is known.
+
+Test, fixed in advance: the replica against R3a (`oi_max=0.05`) and R3d (`oi_market=ALL oi_max=0.035`),
+unchanged, on 2023-07-01 to 2025-06-01. HYPE lists in late 2024 and joins when its data starts. Same kill
+condition: smaller max drawdown and higher return over drawdown than the replica on that window.
+Known gap: 301 hours without rows on 85 evenings, August to December 2024.
+
+### Round 5 result: the instrument failed its calibration, so no verdict
+
+On 2025-06-05 to 2026-11-01 the mark bars give the replica -16.20% with a 44.91% drawdown where the candle
+bars give +31.98% and 10.38%. Mark bars have about half the real hourly range (BTC 0.30% against 0.63%), the
++0.56% exits mostly fill inside the hour, and without them trips stay open and ladders run deep. So this
+dataset cannot price the strategy, and a pass or fail on it is not a verdict. What it does show is in
+REPORT.md. (`0xbt data check` also flags these files: price rows before the engine's 2025-03-22 fills era.)
