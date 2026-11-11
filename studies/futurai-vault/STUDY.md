@@ -547,3 +547,30 @@ Where this leaves the study, on 27 copies:
   first orders under: 8.6%, 19.7% and 25.7% of equity at those sizes (arithmetic, not a run).
 - R8d (round 8) is withdrawn. Skipping crowded-long markets is a first-half effect. `high_gap` fails.
 36 changes in eleven rounds; 927 distinct results in the ledger, about 700 of them ensemble copies.
+
+## Round 12, declared before running (2026-11-11): add distances by each coin's volatility
+
+**The idea.** Every coin's ladder spans the same 15% (adds at -2.25% to -14.95% from the first fill). For a
+quiet coin that is a crash; for a wild one it is a normal week, so wild coins spend their ladders more often,
+and a spent ladder is where every lost trip in this study came from (BCH, LINK, DOGE). Give each coin the same
+ladder in units of its own volatility.
+
+**What was already tried.** Round 1's `vol_scale` scaled the entry, the adds and the exits together by 24-hour
+volatility against a fixed 0.6%, on one path, and failed. Round 6 moved every coin's adds at once: 0.75x is a
+cliff, 1.5x mildly worse. So the prior is not friendly: scaling around an average of 1 pushes the calmer coins
+toward the tight side, where the cliff is.
+
+**The rule tested.** `gap_vol=1`: when a trip opens, its add distances are multiplied by the coin's 7-day
+hourly volatility over the mean of the markets it could have opened in at that hour (the picked five under
+`pick=5`, else all ten), held between 0.5 and 2 and fixed for the life of the trip. The average gap stays the
+vault's; nothing is fitted. `gap_vol=2` scales the exits by the same number.
+
+- G1: `pick=5 gap_vol=1`, against `pick=5`.
+- G2: `pick=5 gap_vol=2`, against `pick=5`.
+- G3: the ten with `gap_vol=1`, against the replica (the widest spread of volatility, BTC to HYPE).
+- G4: `pick=5 fr_max=0 base=0.0083 max_open=3 gap_vol=1`, against the same without it (R8a).
+
+**Rule.** Round 11's: 27 copies each; a variant beats its baseline only if the median return over median
+drawdown is higher and the worst copy's drawdown is smaller, in the full run and both halves. The minute window
+(27 copies) is reported for G1 and G4. Also reported: the range of multipliers each coin gets, and how many
+copies end the run holding a trip of six or more buys.
